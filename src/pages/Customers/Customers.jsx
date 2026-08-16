@@ -489,7 +489,7 @@ export function Customers() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md glass-card p-0 overflow-hidden shadow-2xl"
+              className="relative w-full max-w-md max-h-[90vh] flex flex-col glass-card p-0 overflow-hidden shadow-2xl"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Customer</h2>
@@ -501,7 +501,7 @@ export function Customers() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80">
+              <form onSubmit={handleAddCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80 overflow-y-auto flex-1">
                 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
@@ -672,7 +672,7 @@ export function Customers() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md glass-card p-0 overflow-hidden shadow-2xl"
+              className="relative w-full max-w-md max-h-[90vh] flex flex-col glass-card p-0 overflow-hidden shadow-2xl"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Customer</h2>
@@ -684,7 +684,7 @@ export function Customers() {
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80">
+              <form onSubmit={handleUpdateCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80 overflow-y-auto flex-1">
                 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>

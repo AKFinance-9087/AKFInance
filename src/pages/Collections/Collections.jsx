@@ -82,7 +82,12 @@ export function Collections() {
   const [splitInterest, setSplitInterest] = useState('');
   const [splitPrincipal, setSplitPrincipal] = useState('');
   const [paymentType, setPaymentType] = useState('Interest + Principal');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const getLocalDatetime = () => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzOffset).toISOString().slice(0, 16);
+  };
+  const [paymentDate, setPaymentDate] = useState(getLocalDatetime());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -532,12 +537,11 @@ export function Collections() {
                         )}
                       </div>
 
-                      {/* Date */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Date</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Date & Time</label>
                         <div className="relative">
                           <input
-                            type="date"
+                            type="datetime-local"
                             value={paymentDate}
                             onChange={(e) => setPaymentDate(e.target.value)}
                             className="w-full p-3 pl-10 text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white appearance-none transition-all"
