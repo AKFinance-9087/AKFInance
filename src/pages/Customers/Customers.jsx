@@ -16,7 +16,9 @@ import {
   Map,
   Wallet,
   BadgePercent,
-  CreditCard
+  CreditCard,
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,6 +33,7 @@ export function Customers() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
   
   const cn = (...inputs) => twMerge(clsx(inputs));
@@ -66,6 +69,7 @@ export function Customers() {
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
     try {
       const response = await fetch(`${API_URL}/customers`, {
         method: 'POST',
@@ -80,6 +84,8 @@ export function Customers() {
       setNewCustomer({ name: '', phone: '', location: '', aadharNumber: '', loanAmount: '', interestRate: '', interestType: 'Monthly', repaymentType: 'Monthly', loanGivenDate: new Date().toISOString().split('T')[0] });
     } catch (saveError) {
       setError(saveError.message || 'Could not add the customer.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -102,6 +108,7 @@ export function Customers() {
 
   const handleUpdateCustomer = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
     try {
       const response = await fetch(`${API_URL}/customers/${editingCustomer.id}`, {
         method: 'PUT',
@@ -122,6 +129,8 @@ export function Customers() {
       setEditingCustomer(null);
     } catch (saveError) {
       setError(saveError.message || 'Could not update the customer.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -629,9 +638,16 @@ export function Customers() {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 btn-primary py-2.5 shadow-blue-500/20"
+                    disabled={isSaving}
+                    className="flex-1 btn-primary py-2.5 shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Save Customer
+                    {isSaving ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      'Save Customer'
+                    )}
                   </button>
                 </div>
               </form>
@@ -720,9 +736,16 @@ export function Customers() {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 btn-primary py-2.5 shadow-blue-500/20"
+                    disabled={isSaving}
+                    className="flex-1 btn-primary py-2.5 shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Update Details
+                    {isSaving ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" /> Updating...
+                      </>
+                    ) : (
+                      'Update Details'
+                    )}
                   </button>
                 </div>
               </form>

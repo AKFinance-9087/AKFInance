@@ -276,35 +276,33 @@ app.post('/api/customers', async (req, res) => {
       return res.status(400).json({ error: 'Customer name is required' });
     }
 
-    const newCustomer = await prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
+    const customer = await prisma.customer.create({
+      data: {
+        name: name.trim(),
+        phone: phone?.trim() || 'N/A',
+        location: location?.trim() || null,
+        aadharNumber: aadharNumber?.trim() || null,
+      },
+    });
+
+    if (parsedLoanAmount > 0) {
+      await prisma.loan.create({
         data: {
-          name: name.trim(),
-          phone: phone?.trim() || 'N/A',
-          location: location?.trim() || null,
-          aadharNumber: aadharNumber?.trim() || null,
+          customerId: customer.id,
+          principalAmount: parsedLoanAmount,
+          remainingPrincipal: parsedLoanAmount,
+          interestRate: parsedInterestRate,
+          interestType: interestType || 'Monthly',
+          repaymentType: repaymentType || 'Monthly',
+          loanGivenDate: loanGivenDate ? new Date(loanGivenDate) : new Date(),
         },
       });
+    }
 
-      if (parsedLoanAmount > 0) {
-        await tx.loan.create({
-          data: {
-            customerId: customer.id,
-            principalAmount: parsedLoanAmount,
-            remainingPrincipal: parsedLoanAmount,
-            interestRate: parsedInterestRate,
-            interestType: interestType || 'Monthly',
-            repaymentType: repaymentType || 'Monthly',
-            loanGivenDate: loanGivenDate ? new Date(loanGivenDate) : new Date(),
-          },
-        });
-      }
-
-      return tx.customer.findUnique({
-        where: { id: customer.id },
-        include: { loans: { include: { _count: { select: { payments: true } } } } },
-      });
-    }, { maxWait: 15000, timeout: 25000 });
+    const newCustomer = await prisma.customer.findUnique({
+      where: { id: customer.id },
+      include: { loans: { include: { _count: { select: { payments: true } } } } },
+    });
 
     const loan = newCustomer.loans[0];
     res.status(201).json({
@@ -513,40 +511,38 @@ app.post('/api/payments', async (req, res) => {
     const { loanId, customerId, amount, principalPaid, interestPaid, paymentType, paymentDate } = req.body;
     
     // We should do this in a transaction to ensure data consistency
-    const result = await prisma.$transaction(async (prisma) => {
-      // 1. Create payment record
-      const payment = await prisma.payment.create({
-        data: {
-          loanId,
-          customerId,
-          amount,
-          principalPaid,
-          interestPaid,
-          paymentType,
-          ...(paymentDate && { paymentDate: new Date(paymentDate) })
-        }
-      });
+    // 1. Create payment record
+    const payment = await prisma.payment.create({
+      data: {
+        loanId,
+        customerId,
+        amount,
+        principalPaid,
+        interestPaid,
+        paymentType,
+        ...(paymentDate && { paymentDate: new Date(paymentDate) })
+      }
+    });
 
-      // 2. Fetch the current loan to compute new balances safely
-      const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-      if (!loan) throw new Error('Loan not found');
+    // 2. Fetch the current loan to compute new balances safely
+    const loan = await prisma.loan.findUnique({ where: { id: loanId } });
+    if (!loan) throw new Error('Loan not found');
 
-      const newPrincipal = Math.max(0, loan.remainingPrincipal - principalPaid);
-      const newInterest = Math.max(0, loan.interestDue - interestPaid);
-      const newStatus = newPrincipal === 0 ? 'Completed' : loan.status;
+    const newPrincipal = Math.max(0, loan.remainingPrincipal - principalPaid);
+    const newInterest = Math.max(0, loan.interestDue - interestPaid);
+    const newStatus = newPrincipal === 0 ? 'Completed' : loan.status;
 
-      // 3. Update loan remaining balance and status
-      const updatedLoan = await prisma.loan.update({
-        where: { id: loanId },
-        data: {
-          remainingPrincipal: newPrincipal,
-          interestDue: newInterest,
-          status: newStatus
-        }
-      });
+    // 3. Update loan remaining balance and status
+    const updatedLoan = await prisma.loan.update({
+      where: { id: loanId },
+      data: {
+        remainingPrincipal: newPrincipal,
+        interestDue: newInterest,
+        status: newStatus
+      }
+    });
 
-      return { payment, updatedLoan };
-    }, { maxWait: 15000, timeout: 25000 });
+    const result = { payment, updatedLoan };
 
     res.status(201).json(result);
   } catch (error) {
