@@ -273,6 +273,39 @@ export function Collections() {
   // ── Loan's own payment history ───────────────────────────────────────────────
   const loanPayments = recentPayments.filter((p) => p.loanId === selectedLoanId);
 
+  const sendWhatsApp = (receipt, language = 'en') => {
+    let text = '';
+    const dateStr = new Date(receipt.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    
+    if (language === 'ta') {
+      text = `*கட்டண ரசீது*\n\n`;
+      text += `வணக்கம் ${receipt.customerName},\n`;
+      text += `தாங்கள் ${dateStr} அன்று செலுத்திய *₹${receipt.amount.toLocaleString()}* தொகை கிடைக்கப்பெற்றது.\n\n`;
+      text += `*கட்டண விவரம்:*\n`;
+      if (receipt.principalPaid > 0) text += `- அசல் வரவு: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.interestPaid > 0) text += `- வட்டி வரவு: ₹${receipt.interestPaid.toLocaleString()}\n`;
+      text += `\n*மீதமுள்ள அசல்:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `நன்றி!`;
+    } else {
+      text = `*Payment Receipt*\n\n`;
+      text += `Hello ${receipt.customerName},\n`;
+      text += `We have received your payment of *₹${receipt.amount.toLocaleString()}* on ${dateStr}.\n\n`;
+      text += `*Payment Breakdown:*\n`;
+      if (receipt.principalPaid > 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.interestPaid > 0) text += `- Interest: ₹${receipt.interestPaid.toLocaleString()}\n`;
+      text += `\n*Remaining Balance:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `Thank you!`;
+    }
+
+    const encodedText = encodeURIComponent(text);
+    let phone = receipt.customerPhone || '';
+    phone = phone.replace(/\D/g,'');
+    if (phone.length === 10) phone = '91' + phone;
+
+    const url = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
+    window.open(url, '_blank');
+  };
+
   return (
     <>
       <AnimatePresence>
@@ -816,31 +849,22 @@ export function Collections() {
                 </p>
                 
                 <div className="space-y-3">
-                  <button 
-                    onClick={() => {
-                      let text = `*Payment Receipt*\n\n`;
-                      text += `Hello ${successReceipt.customerName},\n`;
-                      text += `We have received your payment of *₹${successReceipt.amount.toLocaleString()}* on ${new Date(successReceipt.date).toLocaleDateString('en-IN')}.\n\n`;
-                      text += `*Payment Breakdown:*\n`;
-                      if (successReceipt.principalPaid > 0) text += `- Principal: ₹${successReceipt.principalPaid.toLocaleString()}\n`;
-                      if (successReceipt.interestPaid > 0) text += `- Interest: ₹${successReceipt.interestPaid.toLocaleString()}\n`;
-                      text += `\n*Remaining Balance:* ₹${successReceipt.remainingPrincipal.toLocaleString()}\n\n`;
-                      text += `Thank you!`;
-                  
-                      const encodedText = encodeURIComponent(text);
-                      
-                      let phone = successReceipt.customerPhone || '';
-                      phone = phone.replace(/\\D/g,'');
-                      if (phone.length === 10) phone = '91' + phone;
-                  
-                      const url = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
-                      window.open(url, '_blank');
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
-                  >
-                    <MessageCircle size={18} />
-                    Send via WhatsApp
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => sendWhatsApp(successReceipt, 'en')}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
+                    >
+                      <MessageCircle size={18} />
+                      <span className="text-xs">Receipt (English)</span>
+                    </button>
+                    <button 
+                      onClick={() => sendWhatsApp(successReceipt, 'ta')}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
+                    >
+                      <MessageCircle size={18} />
+                      <span className="text-xs">ரசீது (Tamil)</span>
+                    </button>
+                  </div>
                   <button 
                     onClick={() => setSuccessReceipt(null)}
                     className="w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors"
