@@ -58,7 +58,7 @@ export function Customers() {
         if (!response.ok) throw new Error('Unable to load customers');
         setCustomers(await response.json());
       } catch (loadError) {
-        setError('Could not load customers. Make sure the backend server is running.');
+        setError(loadError.message);
       } finally {
         setIsLoading(false);
       }
@@ -83,7 +83,7 @@ export function Customers() {
       setIsAddModalOpen(false);
       setNewCustomer({ name: '', phone: '', location: '', aadharNumber: '', loanAmount: '', interestRate: '', interestType: 'Monthly', repaymentType: 'Monthly', loanGivenDate: new Date().toISOString().split('T')[0] });
     } catch (saveError) {
-      setError(saveError.message || 'Could not add the customer.');
+      setError(saveError.message);
     } finally {
       setIsSaving(false);
     }
@@ -167,6 +167,7 @@ export function Customers() {
     
     if (customer.repaymentType === 'Daily') { expectedPayments = diffDays; periodLabel = 'Day'; }
     else if (customer.repaymentType === 'Weekly') { expectedPayments = Math.floor(diffDays / 7); periodLabel = 'Week'; }
+    else if (customer.repaymentType === '10 Days') { expectedPayments = Math.floor(diffDays / 10); periodLabel = '10-Day Period'; }
     else if (customer.repaymentType === 'Monthly') { 
         let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
         months -= givenDateMidnight.getMonth();
@@ -196,7 +197,7 @@ export function Customers() {
     if (s === 'active' || s === 'advance paid') {
       return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800';
     }
-    if (s === 'closed') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+    if (s === 'closed') return 'bg-blue-100 text-blue-700 dark:bg-blue-600/30 dark:text-blue-400 border-blue-200 dark:border-blue-700';
     if (s === 'overdue') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800';
     return 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400';
   };
@@ -283,7 +284,7 @@ export function Customers() {
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold shadow-inner">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-600/40 dark:to-blue-700/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold shadow-inner">
                           {customer.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -345,7 +346,7 @@ export function Customers() {
                       <div className="flex items-center justify-end gap-2 transition-opacity">
                         <button 
                           onClick={() => navigate(`/customers/${customer.id}`)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors" 
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-600/30 rounded-lg transition-colors" 
                           title="View Details"
                         >
                           <Eye size={18} />
@@ -394,7 +395,7 @@ export function Customers() {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold shadow-inner shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-600/40 dark:to-blue-700/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold shadow-inner shrink-0">
                       {customer.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
@@ -444,7 +445,7 @@ export function Customers() {
                 <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-700/50">
                   <button 
                     onClick={() => navigate(`/customers/${customer.id}`)}
-                    className="flex-1 flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors border border-blue-100 dark:border-blue-900/30" 
+                    className="flex-1 flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-600/30 rounded-lg transition-colors border border-blue-100 dark:border-blue-600/30" 
                   >
                     <Eye size={16} className="mr-2" /> View Details
                   </button>
@@ -613,6 +614,7 @@ export function Customers() {
                     >
                       <option value="Daily">Daily</option>
                       <option value="Weekly">Weekly</option>
+                      <option value="10 Days">10 Days</option>
                       <option value="Monthly">Monthly</option>
                     </select>
                   </div>

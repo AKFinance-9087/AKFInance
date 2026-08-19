@@ -20,13 +20,15 @@ import {
 } from 'recharts';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { pdf } from '@react-pdf/renderer';
+import { MonthlyReportPDF } from './MonthlyReportPDF';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function Reports() {
-  const [reportType, setReportType] = useState('weekly'); // 'weekly' or 'monthly'
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -53,9 +55,38 @@ export function Reports() {
     );
   }
 
-  const currentData = reportType === 'weekly' ? data.weeklyData : data.monthlyData;
+  const currentData = data.monthlyData;
   const totalDisbursed = currentData.reduce((acc, curr) => acc + curr.disbursed, 0);
   const totalCollected = currentData.reduce((acc, curr) => acc + curr.collected, 0);
+  const totalInterest = currentData.reduce((acc, curr) => acc + (curr.interest || 0), 0);
+
+  const handleDownloadReport = async () => {
+    if (!data) return;
+    setIsExporting(true);
+    try {
+      const blob = await pdf(
+        <MonthlyReportPDF 
+          data={data} 
+          totalDisbursed={totalDisbursed} 
+          totalCollected={totalCollected} 
+          totalInterest={totalInterest} 
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Monthly_Report_${new Date().toLocaleString('default', { month: 'short', year: 'numeric' })}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Failed to generate PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -74,41 +105,16 @@ export function Reports() {
       animate="visible"
       className="max-w-7xl mx-auto space-y-6"
     >
-      {/* Header & Controls */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Financial Reports</h1>
-          <p className="text-slate-500 dark:text-slate-400">View your disbursement and collection analytics.</p>
-        </div>
-        
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
-          <button 
-            onClick={() => setReportType('weekly')}
-            className={cn(
-              "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all",
-              reportType === 'weekly' 
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            )}
-          >
-            Weekly
-          </button>
-          <button 
-            onClick={() => setReportType('monthly')}
-            className={cn(
-              "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all",
-              reportType === 'monthly' 
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            )}
-          >
-            Monthly
-          </button>
+          <p className="text-slate-500 dark:text-slate-400">View your disbursement and collection analytics for this month.</p>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div variants={itemVariants} className="glass-card p-6 border-l-4 border-l-orange-500">
           <div className="flex justify-between items-start">
             <div>
@@ -124,7 +130,7 @@ export function Reports() {
           </div>
           <p className="text-sm text-slate-500 mt-4 flex items-center">
             <CalendarDays size={14} className="mr-1" />
-            In the current {reportType} period
+            In the current month
           </p>
         </motion.div>
 
@@ -143,7 +149,26 @@ export function Reports() {
           </div>
           <p className="text-sm text-slate-500 mt-4 flex items-center">
             <CalendarDays size={14} className="mr-1" />
-            In the current {reportType} period
+            In the current month
+          </p>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card p-6 border-l-4 border-l-blue-500">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Interest Collected</p>
+              <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
+                <IndianRupee size={24} className="mr-1 text-slate-400"/>
+                {totalInterest.toLocaleString()}
+              </h3>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+              <TrendingDown size={24} />
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 mt-4 flex items-center">
+            <CalendarDays size={14} className="mr-1" />
+            In the current month
           </p>
         </motion.div>
       </div>
@@ -152,8 +177,12 @@ export function Reports() {
       <motion.div variants={itemVariants} className="glass-card p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Disbursed vs Collected</h3>
-          <button className="text-sm flex items-center text-blue-600 hover:text-blue-700 font-medium">
-            <Download size={16} className="mr-1" /> Download Report
+          <button 
+            onClick={handleDownloadReport}
+            disabled={isExporting}
+            className="text-sm flex items-center text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+          >
+            <Download size={16} className="mr-1" /> {isExporting ? 'Generating...' : 'Download Report'}
           </button>
         </div>
         
@@ -173,6 +202,7 @@ export function Reports() {
               <Legend wrapperStyle={{ paddingTop: '20px' }} />
               <Bar dataKey="disbursed" name="Disbursed" fill="#F97316" radius={[4, 4, 0, 0]} maxBarSize={50} />
               <Bar dataKey="collected" name="Collected" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={50} />
+              <Bar dataKey="interest" name="Interest" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={50} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -31,13 +31,13 @@ export function Login() {
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
       
       {/* Left Pane - Image & Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-blue-900 overflow-hidden items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 relative bg-blue-600 overflow-hidden items-center justify-center">
         {/* Background Image */}
         <div 
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-overlay"
           style={{ backgroundImage: "url('/login-bg.png')" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/80 to-blue-950/90 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/80 to-blue-950/90 z-10" />
         
         {/* Content */}
         <div className="relative z-20 text-center px-12">
@@ -47,9 +47,9 @@ export function Login() {
             transition={{ duration: 0.8 }}
           >
             <div className="flex justify-center mb-8">
-              <img src={logoImg} alt="AK Finance Logo" className="h-32 w-auto object-contain bg-white rounded-2xl p-4 shadow-xl" />
+              <img src={logoImg} alt="AK Finance Logo" className="h-32 w-auto object-contain" />
             </div>
-            <h1 className="text-5xl font-extrabold text-white mb-6 tracking-tight">AK Finance</h1>
+
             <p className="text-xl text-blue-100 font-light max-w-md mx-auto leading-relaxed">
               The complete solution for managing loans, customers, and daily collections with precision and ease.
             </p>

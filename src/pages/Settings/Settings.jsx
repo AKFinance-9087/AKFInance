@@ -67,7 +67,7 @@ export function Settings() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-600/40 text-blue-600 dark:text-blue-400 rounded-lg">
                       <Globe size={24} />
                     </div>
                     <div>

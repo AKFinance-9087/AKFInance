@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { pdf } from '@react-pdf/renderer';
+import { CustomerStatementPDF } from './CustomerStatementPDF';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -30,6 +32,28 @@ export function CustomerProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportStatement = async () => {
+    if (!customer) return;
+    setIsExporting(true);
+    try {
+      const blob = await pdf(<CustomerStatementPDF customer={customer} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${customer.name.replace(/\s+/g, '_')}_Statement.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Failed to generate PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleWhatsAppShare = (payment) => {
     if (!customer || !customer.loan) return;
@@ -63,7 +87,7 @@ export function CustomerProfile() {
         const data = await response.json();
         setCustomer(data);
       } catch (err) {
-        setError(err.message);
+        setError(err.message || 'Customer not found (Make sure backend is running).');
       } finally {
         setIsLoading(false);
       }
@@ -168,18 +192,18 @@ export function CustomerProfile() {
 
           {/* Active Loan Details */}
           {customer.loan ? (
-            <motion.div variants={itemVariants} className="glass-card p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800/30">
+            <motion.div variants={itemVariants} className="glass-card p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-600/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-700/30">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
                 <FileText size={18} className="mr-2 text-blue-600 dark:text-blue-400" /> Active Loan
               </h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-800/50">
+                <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Principal Amount</span>
                   <span className="font-semibold text-slate-900 dark:text-white flex items-center">
                     <IndianRupee size={14} className="mr-0.5"/> {customer.loan.principalAmount.toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-800/50">
+                <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Interest Rate</span>
                   <span className="font-medium text-slate-900 dark:text-white">
                     {customer.loan.interestRate}% ({customer.loan.interestType})
@@ -208,8 +232,12 @@ export function CustomerProfile() {
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
                 <Clock size={18} className="mr-2 text-blue-500" /> Payment History
               </h3>
-              <button className="text-sm flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">
-                <Download size={16} className="mr-1" /> Export Statement
+              <button 
+                onClick={handleExportStatement}
+                disabled={isExporting}
+                className="text-sm flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium disabled:opacity-50"
+              >
+                <Download size={16} className="mr-1" /> {isExporting ? 'Generating...' : 'Export Statement'}
               </button>
             </div>
 

@@ -56,7 +56,7 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) 
           <div className="flex items-center justify-between mb-6 px-2">
             {!collapsed && (
               <div className="flex items-center gap-3">
-                <img src={logoImg} alt="AK Finance Logo" className="h-10 w-auto object-contain bg-white rounded p-1" />
+                <img src={logoImg} alt="AK Finance Logo" className="h-10 w-auto object-contain" />
               </div>
             )}
             <button 

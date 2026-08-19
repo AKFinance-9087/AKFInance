@@ -484,7 +484,7 @@ export function Collections() {
                               className={cn(
                                 'py-2 px-1 text-xs font-medium rounded-xl border transition-all text-center',
                                 paymentType === type
-                                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-500 shadow-sm'
+                                  ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-600/30 dark:text-blue-400 dark:border-blue-500 shadow-sm'
                                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400'
                               )}
                             >
@@ -720,9 +720,9 @@ export function Collections() {
                       key={paymentAmount + paymentType}
                       initial={{ opacity: 0, scale: 0.97 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="glass-card p-6 border-blue-200 dark:border-blue-800/50 relative overflow-hidden"
+                      className="glass-card p-6 border-blue-200 dark:border-blue-700/50 relative overflow-hidden"
                     >
-                      <div className="absolute -right-6 -top-6 text-blue-50 dark:text-blue-900/20 pointer-events-none">
+                      <div className="absolute -right-6 -top-6 text-blue-50 dark:text-blue-600/20 pointer-events-none">
                         <Calculator size={100} />
                       </div>
                       <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-4 relative z-10 flex items-center gap-2">
