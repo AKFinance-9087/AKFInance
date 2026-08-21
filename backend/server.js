@@ -53,16 +53,16 @@ app.get('/api/dashboard/summary', async (req, res) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentDate = new Date();
     const monthlyData = [];
-    
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const monthName = months[d.getMonth()];
       const year = d.getFullYear();
-      
+
       const income = paymentsRaw
         .filter(p => new Date(p.paymentDate).getMonth() === d.getMonth() && new Date(p.paymentDate).getFullYear() === year)
         .reduce((sum, p) => sum + p.amount, 0);
-        
+
       const expenses = loansRaw
         .filter(l => new Date(l.loanGivenDate).getMonth() === d.getMonth() && new Date(l.loanGivenDate).getFullYear() === year)
         .reduce((sum, l) => sum + l.principalAmount, 0);
@@ -77,7 +77,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
       value: l._count._all,
       color: colorMap[l.status] || '#CBD5E1'
     }));
-    
+
     // Ensure total loans are calculated
     const totalLoansCount = loanDistribution.reduce((acc, curr) => acc + curr.value, 0);
 
@@ -139,28 +139,28 @@ app.get('/api/reports', async (req, res) => {
     ]);
 
     const now = new Date();
-    
+
     // --- WEEKLY DATA (Last 7 Days) ---
     const weeklyData = [];
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
       const dayName = days[d.getDay()];
-      
+
       const collected = payments
         .filter(p => {
           const pd = new Date(p.paymentDate);
           return pd.getDate() === d.getDate() && pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
         })
         .reduce((sum, p) => sum + p.amount, 0);
-        
+
       const disbursed = loans
         .filter(l => {
           const ld = new Date(l.loanGivenDate);
           return ld.getDate() === d.getDate() && ld.getMonth() === d.getMonth() && ld.getFullYear() === d.getFullYear();
         })
         .reduce((sum, l) => sum + l.principalAmount, 0);
-        
+
       weeklyData.push({ name: dayName, disbursed, collected });
     }
 
@@ -171,41 +171,41 @@ app.get('/api/reports', async (req, res) => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = months[d.getMonth()];
       const year = d.getFullYear();
-      
+
       const collected = payments
         .filter(p => {
           const pd = new Date(p.paymentDate);
           return pd.getMonth() === d.getMonth() && pd.getFullYear() === year;
         })
         .reduce((sum, p) => sum + p.amount, 0);
-        
+
       const disbursed = loans
         .filter(l => {
           const ld = new Date(l.loanGivenDate);
           return ld.getMonth() === d.getMonth() && ld.getFullYear() === year;
         })
         .reduce((sum, l) => sum + l.principalAmount, 0);
-        
+
       monthlyData.push({ name: monthName, disbursed, collected });
     }
 
     // --- RECENT TRANSACTIONS ---
     const formattedPayments = payments.map(p => ({
-      id: `PAY-${p.id.substring(0,6).toUpperCase()}`,
+      id: `PAY-${p.id.substring(0, 6).toUpperCase()}`,
       type: 'Collected',
       customer: p.customer?.name || 'Unknown',
       amount: p.amount,
       rawDate: new Date(p.paymentDate)
     }));
-    
+
     const formattedLoans = loans.map(l => ({
-      id: `LOAN-${l.id.substring(0,6).toUpperCase()}`,
+      id: `LOAN-${l.id.substring(0, 6).toUpperCase()}`,
       type: 'Disbursed',
       customer: l.customer?.name || 'Unknown',
       amount: l.principalAmount,
       rawDate: new Date(l.loanGivenDate)
     }));
-    
+
     const recentTransactions = [...formattedPayments, ...formattedLoans]
       .sort((a, b) => b.rawDate - a.rawDate)
       .slice(0, 50)
@@ -341,7 +341,7 @@ app.delete('/api/customers/:id', async (req, res) => {
 app.put('/api/customers/:id', async (req, res) => {
   try {
     const { name, phone, location, aadharNumber } = req.body;
-    
+
     if (!name?.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
     }
@@ -405,7 +405,7 @@ app.get('/api/customers/:id', async (req, res) => {
     }
 
     const loan = customer.loans[0];
-    
+
     let formattedLoan = null;
     let paymentHistory = [];
 
@@ -457,7 +457,7 @@ app.get('/api/customers/:id', async (req, res) => {
 app.get('/api/loans', async (req, res) => {
   try {
     const loans = await prisma.loan.findMany({
-      include: { 
+      include: {
         customer: true,
         payments: true
       }
@@ -509,7 +509,7 @@ app.get('/api/payments', async (req, res) => {
 app.post('/api/payments', async (req, res) => {
   try {
     const { loanId, customerId, amount, principalPaid, interestPaid, paymentType, paymentDate } = req.body;
-    
+
     // We should do this in a transaction to ensure data consistency
     // 1. Create payment record
     const payment = await prisma.payment.create({

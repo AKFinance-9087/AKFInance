@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  IndianRupee, 
+import {
+  IndianRupee,
   TrendingUp,
   TrendingDown,
   CalendarDays,
   FileText,
   Download
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Legend
 } from 'recharts';
@@ -44,9 +44,9 @@ export function Reports() {
     };
     fetchReports();
   }, []);
-  
+
   const cn = (...inputs) => twMerge(clsx(inputs));
-  
+
   if (isLoading || !data) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -65,11 +65,11 @@ export function Reports() {
     setIsExporting(true);
     try {
       const blob = await pdf(
-        <MonthlyReportPDF 
-          data={data} 
-          totalDisbursed={totalDisbursed} 
-          totalCollected={totalCollected} 
-          totalInterest={totalInterest} 
+        <MonthlyReportPDF
+          data={data}
+          totalDisbursed={totalDisbursed}
+          totalCollected={totalCollected}
+          totalInterest={totalInterest}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -99,9 +99,9 @@ export function Reports() {
   };
 
   return (
-    <motion.div 
-      variants={containerVariants} 
-      initial="hidden" 
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
       animate="visible"
       className="max-w-7xl mx-auto space-y-6"
     >
@@ -109,7 +109,32 @@ export function Reports() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Financial Reports</h1>
-          <p className="text-slate-500 dark:text-slate-400">View your disbursement and collection analytics for this month.</p>
+          <p className="text-slate-500 dark:text-slate-400">View your disbursement and collection analytics.</p>
+        </div>
+
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
+          <button
+            onClick={() => setReportType('weekly')}
+            className={cn(
+              "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all",
+              reportType === 'weekly'
+                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            )}
+          >
+            Weekly
+          </button>
+          <button
+            onClick={() => setReportType('monthly')}
+            className={cn(
+              "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all",
+              reportType === 'monthly'
+                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            )}
+          >
+            Monthly
+          </button>
         </div>
       </div>
 
@@ -120,7 +145,7 @@ export function Reports() {
             <div>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Amount Disbursed</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
-                <IndianRupee size={24} className="mr-1 text-slate-400"/>
+                <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalDisbursed.toLocaleString()}
               </h3>
             </div>
@@ -139,7 +164,7 @@ export function Reports() {
             <div>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Amount Collected</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
-                <IndianRupee size={24} className="mr-1 text-slate-400"/>
+                <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalCollected.toLocaleString()}
               </h3>
             </div>
@@ -158,7 +183,7 @@ export function Reports() {
             <div>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Interest Collected</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
-                <IndianRupee size={24} className="mr-1 text-slate-400"/>
+                <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalInterest.toLocaleString()}
               </h3>
             </div>
@@ -177,7 +202,7 @@ export function Reports() {
       <motion.div variants={itemVariants} className="glass-card p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Disbursed vs Collected</h3>
-          <button 
+          <button
             onClick={handleDownloadReport}
             disabled={isExporting}
             className="text-sm flex items-center text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
@@ -185,7 +210,7 @@ export function Reports() {
             <Download size={16} className="mr-1" /> {isExporting ? 'Generating...' : 'Download Report'}
           </button>
         </div>
-        
+
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -195,7 +220,7 @@ export function Reports() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} dx={-10} />
-              <Tooltip 
+              <Tooltip
                 cursor={{ fill: '#F1F5F9', opacity: 0.5 }}
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
               />
@@ -233,8 +258,8 @@ export function Reports() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-2.5 py-1 rounded-full text-xs font-medium border",
-                      trx.type === 'Collected' 
-                        ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800" 
+                      trx.type === 'Collected'
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800"
                         : "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:border-orange-800"
                     )}>
                       {trx.type}
