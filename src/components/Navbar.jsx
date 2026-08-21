@@ -2,6 +2,8 @@ import { Search, Bell, Moon, Sun, User, Menu, AlertCircle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export function Navbar({ collapsed, setMobileOpen, mobileOpen }) {
   const [darkMode, setDarkMode] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -10,7 +12,20 @@ export function Navbar({ collapsed, setMobileOpen, mobileOpen }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Notifications will be fetched from backend in the future
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch(`${API_URL}/notifications/pending`);
+        if (response.ok) {
+          const data = await response.json();
+          setPendingCustomers(data.notifications || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch pending notifications:', err);
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

@@ -155,11 +155,12 @@ export function Collections() {
     const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
     const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-    let expectedPayments = 0;
+    let periodsElapsed = 0;
     let periodLabel = '';
     
-    if (loan.repaymentType === 'Daily') { expectedPayments = diffDays; periodLabel = 'Day(s)'; }
-    else if (loan.repaymentType === 'Weekly') { expectedPayments = Math.floor(diffDays / 7); periodLabel = 'Week(s)'; }
+    if (loan.repaymentType === 'Daily') { periodsElapsed = diffDays; periodLabel = 'Day(s)'; }
+    else if (loan.repaymentType === 'Weekly') { periodsElapsed = Math.floor(diffDays / 7); periodLabel = 'Week(s)'; }
+    else if (loan.repaymentType === '10 Days') { periodsElapsed = Math.floor(diffDays / 10); periodLabel = 'Period(s)'; }
     else if (loan.repaymentType === 'Monthly') { 
         let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
         months -= givenDateMidnight.getMonth();
@@ -167,11 +168,13 @@ export function Collections() {
         if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
             months--;
         }
-        expectedPayments = Math.max(0, months);
+        periodsElapsed = Math.max(0, months);
         periodLabel = 'Month(s)'; 
     }
 
     const actualPayments = loan.payments?.length || 0;
+    const hasInitial = actualPayments > 0;
+    const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
     const pendingCount = expectedPayments - actualPayments;
 
     if (pendingCount > 0) return { count: pendingCount, label: `${pendingCount} ${periodLabel} Pending`, isPending: true };

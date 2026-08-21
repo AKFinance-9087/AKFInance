@@ -253,12 +253,18 @@ export function CustomerProfile() {
                         
                         {/* Date & basic info */}
                         <div className="flex-grow">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Calendar size={14} className="text-slate-400" />
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{payment.date}</span>
-                            <span className="text-xs bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 px-2 py-0.5 rounded ml-2">
-                              {payment.mode}
-                            </span>
+                            {payment.mode === 'First Auto Interest' || payment.mode === 'Initial Interest' || (index === customer.paymentHistory.length - 1 && payment.interestPart > 0 && payment.principalPart === 0 && payment.mode === 'Interest Only') ? (
+                              <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800 font-medium px-2 py-0.5 rounded-full ml-1">
+                                First Auto Interest
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-2 py-0.5 rounded ml-1">
+                                {payment.mode}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-500">Receipt No: {payment.id}</p>
                         </div>

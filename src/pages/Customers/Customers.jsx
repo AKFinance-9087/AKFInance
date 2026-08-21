@@ -71,10 +71,21 @@ export function Customers() {
     e.preventDefault();
     setIsSaving(true);
     try {
+      const now = new Date();
+      let submissionDate = now.toISOString();
+      if (newCustomer.loanGivenDate) {
+        const [y, m, d] = newCustomer.loanGivenDate.split('-').map(Number);
+        if (y === now.getFullYear() && (m - 1) === now.getMonth() && d === now.getDate()) {
+          submissionDate = now.toISOString();
+        } else {
+          submissionDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+        }
+      }
+
       const response = await fetch(`${API_URL}/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCustomer),
+        body: JSON.stringify({ ...newCustomer, loanGivenDate: submissionDate }),
       });
       const customer = await response.json();
       if (!response.ok) throw new Error(customer.error || 'Unable to add customer');
@@ -162,12 +173,12 @@ export function Customers() {
     const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
     const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-    let expectedPayments = 0;
+    let periodsElapsed = 0;
     let periodLabel = '';
     
-    if (customer.repaymentType === 'Daily') { expectedPayments = diffDays; periodLabel = 'Day'; }
-    else if (customer.repaymentType === 'Weekly') { expectedPayments = Math.floor(diffDays / 7); periodLabel = 'Week'; }
-    else if (customer.repaymentType === '10 Days') { expectedPayments = Math.floor(diffDays / 10); periodLabel = '10-Day Period'; }
+    if (customer.repaymentType === 'Daily') { periodsElapsed = diffDays; periodLabel = 'Day'; }
+    else if (customer.repaymentType === 'Weekly') { periodsElapsed = Math.floor(diffDays / 7); periodLabel = 'Week'; }
+    else if (customer.repaymentType === '10 Days') { periodsElapsed = Math.floor(diffDays / 10); periodLabel = '10-Day Period'; }
     else if (customer.repaymentType === 'Monthly') { 
         let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
         months -= givenDateMidnight.getMonth();
@@ -175,17 +186,19 @@ export function Customers() {
         if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
             months--;
         }
-        expectedPayments = Math.max(0, months);
+        periodsElapsed = Math.max(0, months);
         periodLabel = 'Month'; 
     } else {
         return customer.status;
     }
 
     const actualPayments = customer.paymentsCount || 0;
+    const hasInitial = actualPayments > 0;
+    const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
     const pendingCount = expectedPayments - actualPayments;
     
     if (pendingCount > 0) return `${pendingCount} ${periodLabel}${pendingCount > 1 ? 's' : ''} Pending`;
-    if (pendingCount < 0) return 'Advance Paid';
+    if (pendingCount < 0) return `${Math.abs(pendingCount)} ${periodLabel}${Math.abs(pendingCount) > 1 ? 's' : ''} Advance`;
     return 'Active';
   };
 
@@ -194,7 +207,7 @@ export function Customers() {
     if (s.includes('pending')) {
       return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800';
     }
-    if (s === 'active' || s === 'advance paid') {
+    if (s === 'active' || s.includes('advance')) {
       return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800';
     }
     if (s === 'closed') return 'bg-blue-100 text-blue-700 dark:bg-blue-600/30 dark:text-blue-400 border-blue-200 dark:border-blue-700';

@@ -11,6 +11,31 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Helper function to resolve accurate display date (fallback to createdAt time if paymentDate is UTC midnight)
+function getEffectiveDate(dateValue, fallbackCreatedAt) {
+  if (!dateValue && !fallbackCreatedAt) return new Date();
+  const d = dateValue ? new Date(dateValue) : new Date(fallbackCreatedAt);
+  if (fallbackCreatedAt && d.toISOString().endsWith('T00:00:00.000Z')) {
+    return new Date(fallbackCreatedAt);
+  }
+  return d;
+}
+
+// Helper function to parse user-provided loan/payment dates preserving current local time if today
+function parseLoanOrPaymentDate(inputDate) {
+  if (!inputDate) return new Date();
+  if (typeof inputDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+    const now = new Date();
+    const [y, m, d] = inputDate.split('-').map(Number);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (inputDate === todayStr) {
+      return new Date(); // exact current time
+    }
+    return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+  }
+  return new Date(inputDate);
+}
+
 // Basic health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is running' });
@@ -45,9 +70,111 @@ app.get('/api/dashboard/summary', async (req, res) => {
         take: 3,
         include: { customer: { select: { name: true } } }
       }),
-      prisma.payment.findMany({ select: { paymentDate: true, amount: true } }),
+      prisma.payment.findMany({ select: { paymentDate: true, amount: true, principalPaid: true, interestPaid: true } }),
       prisma.loan.findMany({ select: { loanGivenDate: true, principalAmount: true } })
     ]);
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Previous month reference
+    const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const prevYear = prevMonthDate.getFullYear();
+    const prevMonth = prevMonthDate.getMonth();
+
+    // 1. Total Investment (Disbursed) this month vs last month
+    const thisMonthLoans = loansRaw.filter(l => {
+      const d = new Date(l.loanGivenDate);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+    const lastMonthLoans = loansRaw.filter(l => {
+      const d = new Date(l.loanGivenDate);
+      return d.getFullYear() === prevYear && d.getMonth() === prevMonth;
+    });
+    const thisMonthInvestment = thisMonthLoans.reduce((sum, l) => sum + (l.principalAmount || 0), 0);
+    const lastMonthInvestment = lastMonthLoans.reduce((sum, l) => sum + (l.principalAmount || 0), 0);
+
+    let investmentTrend = 'up';
+    let investmentTrendValue = '0.0%';
+    if (lastMonthInvestment > 0) {
+      const pct = ((thisMonthInvestment - lastMonthInvestment) / lastMonthInvestment) * 100;
+      investmentTrend = pct >= 0 ? 'up' : 'down';
+      investmentTrendValue = `${Math.abs(pct).toFixed(1)}%`;
+    } else if (thisMonthInvestment > 0) {
+      investmentTrend = 'up';
+      investmentTrendValue = '100.0%';
+    }
+
+    // 2. Remaining Principal (Principal repayments / reductions this month vs last month)
+    const thisMonthPayments = paymentsRaw.filter(p => {
+      const d = new Date(p.paymentDate);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+    const lastMonthPayments = paymentsRaw.filter(p => {
+      const d = new Date(p.paymentDate);
+      return d.getFullYear() === prevYear && d.getMonth() === prevMonth;
+    });
+
+    const thisMonthPrincipalPaid = thisMonthPayments.reduce((sum, p) => sum + (p.principalPaid || 0), 0);
+    const lastMonthPrincipalPaid = lastMonthPayments.reduce((sum, p) => sum + (p.principalPaid || 0), 0);
+
+    let remainingTrend = 'down';
+    let remainingTrendValue = '0.0%';
+    if (lastMonthPrincipalPaid > 0) {
+      const pct = ((thisMonthPrincipalPaid - lastMonthPrincipalPaid) / lastMonthPrincipalPaid) * 100;
+      remainingTrend = pct >= 0 ? 'down' : 'up';
+      remainingTrendValue = `${Math.abs(pct).toFixed(1)}%`;
+    } else if (thisMonthPrincipalPaid > 0) {
+      remainingTrend = 'down';
+      remainingTrendValue = '100.0%';
+    }
+
+    // 3. Total Interest Earned this month vs last month
+    const thisMonthInterest = thisMonthPayments.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+    const lastMonthInterest = lastMonthPayments.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+
+    let interestTrend = 'up';
+    let interestTrendValue = '0.0%';
+    if (lastMonthInterest > 0) {
+      const pct = ((thisMonthInterest - lastMonthInterest) / lastMonthInterest) * 100;
+      interestTrend = pct >= 0 ? 'up' : 'down';
+      interestTrendValue = `${Math.abs(pct).toFixed(1)}%`;
+    } else if (thisMonthInterest > 0) {
+      interestTrend = 'up';
+      interestTrendValue = '100.0%';
+    }
+
+    // 4. Active / New Customers this month vs last month
+    const [thisMonthCustCount, lastMonthCustCount] = await Promise.all([
+      prisma.customer.count({
+        where: {
+          createdAt: {
+            gte: new Date(currentYear, currentMonth, 1),
+            lt: new Date(currentYear, currentMonth + 1, 1)
+          }
+        }
+      }),
+      prisma.customer.count({
+        where: {
+          createdAt: {
+            gte: new Date(prevYear, prevMonth, 1),
+            lt: new Date(currentYear, currentMonth, 1)
+          }
+        }
+      })
+    ]);
+
+    let customerTrend = 'up';
+    let customerTrendValue = '0.0%';
+    if (lastMonthCustCount > 0) {
+      const pct = ((thisMonthCustCount - lastMonthCustCount) / lastMonthCustCount) * 100;
+      customerTrend = pct >= 0 ? 'up' : 'down';
+      customerTrendValue = `${Math.abs(pct).toFixed(1)}%`;
+    } else if (thisMonthCustCount > 0) {
+      customerTrend = 'up';
+      customerTrendValue = '100.0%';
+    }
 
     // Format Monthly Data (Last 7 months)
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -88,7 +215,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
       amount: p.amount,
       type: p.paymentType,
       status: p.status,
-      date: new Date(p.paymentDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      date: getEffectiveDate(p.paymentDate, p.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
     }));
 
     // Format Overdue Loans
@@ -105,9 +232,17 @@ app.get('/api/dashboard/summary', async (req, res) => {
     res.json({
       topStats: {
         totalInvestment: totalInvestmentAgg._sum.principalAmount || 0,
+        totalInvestmentTrend: investmentTrend,
+        totalInvestmentTrendValue: investmentTrendValue,
         remainingPrincipal: remainingPrincipalAgg._sum.remainingPrincipal || 0,
+        remainingPrincipalTrend: remainingTrend,
+        remainingPrincipalTrendValue: remainingTrendValue,
         totalInterestEarned: totalInterestAgg._sum.interestPaid || 0,
-        activeCustomers: activeCustomersCount || 0
+        totalInterestEarnedTrend: interestTrend,
+        totalInterestEarnedTrendValue: interestTrendValue,
+        activeCustomers: activeCustomersCount || 0,
+        activeCustomersTrend: customerTrend,
+        activeCustomersTrendValue: customerTrendValue
       },
       charts: {
         monthlyData,
@@ -139,54 +274,88 @@ app.get('/api/reports', async (req, res) => {
     ]);
 
     const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
 
-    // --- WEEKLY DATA (Last 7 Days) ---
-    const weeklyData = [];
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const dayName = days[d.getDay()];
+    // Filter current month data
+    const currentMonthPayments = payments.filter(p => {
+      const pd = new Date(p.paymentDate);
+      return pd.getFullYear() === currentYear && pd.getMonth() === currentMonth;
+    });
 
-      const collected = payments
-        .filter(p => {
-          const pd = new Date(p.paymentDate);
-          return pd.getDate() === d.getDate() && pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
-        })
-        .reduce((sum, p) => sum + p.amount, 0);
+    const currentMonthLoans = loans.filter(l => {
+      const ld = new Date(l.loanGivenDate);
+      return ld.getFullYear() === currentYear && ld.getMonth() === currentMonth;
+    });
 
-      const disbursed = loans
+    const totalDisbursed = currentMonthLoans.reduce((sum, l) => sum + (l.principalAmount || 0), 0);
+    const totalCollected = currentMonthPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalInterest = currentMonthPayments.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+
+    // --- WEEKLY BREAKDOWN FOR CURRENT MONTH (Week 1: 1-7, Week 2: 8-14, Week 3: 15-21, Week 4: 22-end) ---
+    const weeks = [
+      { name: 'Week 1', startDay: 1, endDay: 7 },
+      { name: 'Week 2', startDay: 8, endDay: 14 },
+      { name: 'Week 3', startDay: 15, endDay: 21 },
+      { name: 'Week 4', startDay: 22, endDay: 31 }
+    ];
+
+    const weeklyData = weeks.map(w => {
+      const disbursed = currentMonthLoans
         .filter(l => {
-          const ld = new Date(l.loanGivenDate);
-          return ld.getDate() === d.getDate() && ld.getMonth() === d.getMonth() && ld.getFullYear() === d.getFullYear();
+          const d = new Date(l.loanGivenDate).getDate();
+          return d >= w.startDay && d <= w.endDay;
         })
-        .reduce((sum, l) => sum + l.principalAmount, 0);
+        .reduce((sum, l) => sum + (l.principalAmount || 0), 0);
 
-      weeklyData.push({ name: dayName, disbursed, collected });
-    }
+      const collected = currentMonthPayments
+        .filter(p => {
+          const d = new Date(p.paymentDate).getDate();
+          return d >= w.startDay && d <= w.endDay;
+        })
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      const interest = currentMonthPayments
+        .filter(p => {
+          const d = new Date(p.paymentDate).getDate();
+          return d >= w.startDay && d <= w.endDay;
+        })
+        .reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+
+      return { name: w.name, disbursed, collected, interest };
+    });
 
     // --- MONTHLY DATA (Last 6 Months) ---
     const monthlyData = [];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d = new Date(currentYear, currentMonth - i, 1);
       const monthName = months[d.getMonth()];
       const year = d.getFullYear();
+      const monthIndex = d.getMonth();
 
       const collected = payments
         .filter(p => {
           const pd = new Date(p.paymentDate);
-          return pd.getMonth() === d.getMonth() && pd.getFullYear() === year;
+          return pd.getMonth() === monthIndex && pd.getFullYear() === year;
         })
-        .reduce((sum, p) => sum + p.amount, 0);
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
 
       const disbursed = loans
         .filter(l => {
           const ld = new Date(l.loanGivenDate);
-          return ld.getMonth() === d.getMonth() && ld.getFullYear() === year;
+          return ld.getMonth() === monthIndex && ld.getFullYear() === year;
         })
-        .reduce((sum, l) => sum + l.principalAmount, 0);
+        .reduce((sum, l) => sum + (l.principalAmount || 0), 0);
 
-      monthlyData.push({ name: monthName, disbursed, collected });
+      const interest = payments
+        .filter(p => {
+          const pd = new Date(p.paymentDate);
+          return pd.getMonth() === monthIndex && pd.getFullYear() === year;
+        })
+        .reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+
+      monthlyData.push({ name: monthName, disbursed, collected, interest });
     }
 
     // --- RECENT TRANSACTIONS ---
@@ -195,7 +364,7 @@ app.get('/api/reports', async (req, res) => {
       type: 'Collected',
       customer: p.customer?.name || 'Unknown',
       amount: p.amount,
-      rawDate: new Date(p.paymentDate)
+      rawDate: getEffectiveDate(p.paymentDate, p.createdAt)
     }));
 
     const formattedLoans = loans.map(l => ({
@@ -203,7 +372,7 @@ app.get('/api/reports', async (req, res) => {
       type: 'Disbursed',
       customer: l.customer?.name || 'Unknown',
       amount: l.principalAmount,
-      rawDate: new Date(l.loanGivenDate)
+      rawDate: getEffectiveDate(l.loanGivenDate, l.createdAt)
     }));
 
     const recentTransactions = [...formattedPayments, ...formattedLoans]
@@ -214,10 +383,15 @@ app.get('/api/reports', async (req, res) => {
         type: t.type,
         customer: t.customer,
         amount: t.amount,
-        date: t.rawDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        date: t.rawDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
       }));
 
     res.json({
+      summary: {
+        totalDisbursed,
+        totalCollected,
+        totalInterest
+      },
       weeklyData,
       monthlyData,
       recentTransactions
@@ -226,6 +400,84 @@ app.get('/api/reports', async (req, res) => {
   } catch (error) {
     console.error('Failed to fetch reports:', error);
     res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+// --- NOTIFICATIONS API (Pending Payments Engine) ---
+app.get('/api/notifications/pending', async (req, res) => {
+  try {
+    const activeLoans = await prisma.loan.findMany({
+      where: { status: 'Active' },
+      include: {
+        customer: true,
+        payments: true
+      },
+      orderBy: { loanGivenDate: 'asc' }
+    });
+
+    const now = new Date();
+    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const pendingNotifications = [];
+
+    for (const loan of activeLoans) {
+      if (!loan.loanGivenDate) continue;
+      const givenDate = new Date(loan.loanGivenDate);
+      const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
+      const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
+      const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+
+      let periodsElapsed = 0;
+      let periodLabel = '';
+
+      if (loan.repaymentType === 'Daily') {
+        periodsElapsed = diffDays;
+        periodLabel = 'Day(s)';
+      } else if (loan.repaymentType === 'Weekly') {
+        periodsElapsed = Math.floor(diffDays / 7);
+        periodLabel = 'Week(s)';
+      } else if (loan.repaymentType === '10 Days') {
+        periodsElapsed = Math.floor(diffDays / 10);
+        periodLabel = 'Period(s)';
+      } else if (loan.repaymentType === 'Monthly') {
+        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
+        months -= givenDateMidnight.getMonth();
+        months += nowMidnight.getMonth();
+        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
+          months--;
+        }
+        periodsElapsed = Math.max(0, months);
+        periodLabel = 'Month(s)';
+      }
+
+      const actualPayments = loan.payments?.length || 0;
+      const hasInitialPayment = actualPayments > 0;
+      const expectedPayments = (hasInitialPayment ? 1 : 0) + periodsElapsed;
+      const pendingCount = expectedPayments - actualPayments;
+
+      if (pendingCount > 0) {
+        pendingNotifications.push({
+          id: loan.customer.id,
+          loanId: loan.id,
+          name: loan.customer.name,
+          phone: loan.customer.phone,
+          pendingDetails: `${pendingCount} ${periodLabel} Pending`,
+          pendingCount,
+          remainingBalance: loan.remainingPrincipal,
+          loanAmount: loan.principalAmount,
+          repaymentType: loan.repaymentType,
+          loanGivenDate: loan.loanGivenDate
+        });
+      }
+    }
+
+    res.json({
+      count: pendingNotifications.length,
+      notifications: pendingNotifications
+    });
+  } catch (error) {
+    console.error('Failed to fetch pending notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch pending notifications' });
   }
 });
 
@@ -286,7 +538,10 @@ app.post('/api/customers', async (req, res) => {
     });
 
     if (parsedLoanAmount > 0) {
-      await prisma.loan.create({
+      const initialInterest = (parsedLoanAmount * parsedInterestRate) / 100;
+      const loanDate = parseLoanOrPaymentDate(loanGivenDate);
+
+      const loan = await prisma.loan.create({
         data: {
           customerId: customer.id,
           principalAmount: parsedLoanAmount,
@@ -294,9 +549,25 @@ app.post('/api/customers', async (req, res) => {
           interestRate: parsedInterestRate,
           interestType: interestType || 'Monthly',
           repaymentType: repaymentType || 'Monthly',
-          loanGivenDate: loanGivenDate ? new Date(loanGivenDate) : new Date(),
+          loanGivenDate: loanDate,
         },
       });
+
+      // Crucial Logic: Create the First Payment Record (Type: First Auto Interest, Date: Loan Given Date, Principal Paid: 0, Total Paid: Calculated Interest)
+      if (initialInterest > 0) {
+        await prisma.payment.create({
+          data: {
+            loanId: loan.id,
+            customerId: customer.id,
+            amount: initialInterest,
+            principalPaid: 0,
+            interestPaid: initialInterest,
+            paymentType: 'First Auto Interest',
+            paymentDate: loanDate,
+            status: 'Completed'
+          }
+        });
+      }
     }
 
     const newCustomer = await prisma.customer.findUnique({
@@ -326,11 +597,9 @@ app.post('/api/customers', async (req, res) => {
 
 app.delete('/api/customers/:id', async (req, res) => {
   try {
-    await prisma.$transaction([
-      prisma.payment.deleteMany({ where: { customerId: req.params.id } }),
-      prisma.loan.deleteMany({ where: { customerId: req.params.id } }),
-      prisma.customer.delete({ where: { id: req.params.id } }),
-    ], { maxWait: 15000, timeout: 25000 });
+    await prisma.payment.deleteMany({ where: { customerId: req.params.id } });
+    await prisma.loan.deleteMany({ where: { customerId: req.params.id } });
+    await prisma.customer.delete({ where: { id: req.params.id } });
     res.status(204).end();
   } catch (error) {
     console.error('Failed to delete customer:', error);
@@ -422,7 +691,7 @@ app.get('/api/customers/:id', async (req, res) => {
 
       paymentHistory = loan.payments.map(p => ({
         id: p.id,
-        date: new Date(p.paymentDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        date: getEffectiveDate(p.paymentDate, p.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }),
         rawDate: p.paymentDate,
         totalPaid: p.amount,
         interestPart: p.interestPaid,
@@ -436,9 +705,9 @@ app.get('/api/customers/:id', async (req, res) => {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
-      altPhone: 'N/A', // Not in DB
+      altPhone: 'N/A',
       location: customer.location || 'N/A',
-      address: customer.location || 'N/A', // Using location as address
+      address: customer.location || 'N/A',
       occupation: 'Not Provided',
       aadharNumber: customer.aadharNumber || 'Not Provided',
       panNumber: 'Not Provided',
@@ -460,7 +729,8 @@ app.get('/api/loans', async (req, res) => {
       include: {
         customer: true,
         payments: true
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
     res.json(loans);
   } catch (error) {
@@ -471,17 +741,38 @@ app.get('/api/loans', async (req, res) => {
 app.post('/api/loans', async (req, res) => {
   try {
     const { customerId, principalAmount, interestRate, interestType, repaymentType, loanGivenDate } = req.body;
+    const parsedPrincipal = Number(principalAmount) || 0;
+    const parsedRate = Number(interestRate) || 0;
+    const loanDate = parseLoanOrPaymentDate(loanGivenDate);
+
     const newLoan = await prisma.loan.create({
       data: {
         customerId,
-        principalAmount,
-        remainingPrincipal: principalAmount,
-        interestRate,
-        interestType,
-        repaymentType,
-        loanGivenDate: new Date(loanGivenDate)
+        principalAmount: parsedPrincipal,
+        remainingPrincipal: parsedPrincipal,
+        interestRate: parsedRate,
+        interestType: interestType || 'Monthly',
+        repaymentType: repaymentType || 'Monthly',
+        loanGivenDate: loanDate
       }
     });
+
+    const initialInterest = (parsedPrincipal * parsedRate) / 100;
+    if (initialInterest > 0) {
+      await prisma.payment.create({
+        data: {
+          loanId: newLoan.id,
+          customerId,
+          amount: initialInterest,
+          principalPaid: 0,
+          interestPaid: initialInterest,
+          paymentType: 'First Auto Interest',
+          paymentDate: loanDate,
+          status: 'Completed'
+        }
+      });
+    }
+
     res.status(201).json(newLoan);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create loan' });
@@ -510,17 +801,21 @@ app.post('/api/payments', async (req, res) => {
   try {
     const { loanId, customerId, amount, principalPaid, interestPaid, paymentType, paymentDate } = req.body;
 
-    // We should do this in a transaction to ensure data consistency
+    const parsedAmount = Number(amount) || 0;
+    const parsedPrincipal = Number(principalPaid) || 0;
+    const parsedInterest = Number(interestPaid) || 0;
+    const pDate = parseLoanOrPaymentDate(paymentDate);
+
     // 1. Create payment record
     const payment = await prisma.payment.create({
       data: {
         loanId,
         customerId,
-        amount,
-        principalPaid,
-        interestPaid,
-        paymentType,
-        ...(paymentDate && { paymentDate: new Date(paymentDate) })
+        amount: parsedAmount,
+        principalPaid: parsedPrincipal,
+        interestPaid: parsedInterest,
+        paymentType: paymentType || 'Interest + Principal',
+        paymentDate: pDate
       }
     });
 
@@ -528,8 +823,8 @@ app.post('/api/payments', async (req, res) => {
     const loan = await prisma.loan.findUnique({ where: { id: loanId } });
     if (!loan) throw new Error('Loan not found');
 
-    const newPrincipal = Math.max(0, loan.remainingPrincipal - principalPaid);
-    const newInterest = Math.max(0, loan.interestDue - interestPaid);
+    const newPrincipal = Math.max(0, loan.remainingPrincipal - parsedPrincipal);
+    const newInterest = Math.max(0, loan.interestDue - parsedInterest);
     const newStatus = newPrincipal === 0 ? 'Completed' : loan.status;
 
     // 3. Update loan remaining balance and status
@@ -542,10 +837,9 @@ app.post('/api/payments', async (req, res) => {
       }
     });
 
-    const result = { payment, updatedLoan };
-
-    res.status(201).json(result);
+    res.status(201).json({ payment, updatedLoan });
   } catch (error) {
+    console.error('Failed to process payment:', error);
     res.status(500).json({ error: 'Failed to process payment' });
   }
 });
@@ -553,3 +847,4 @@ app.post('/api/payments', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+

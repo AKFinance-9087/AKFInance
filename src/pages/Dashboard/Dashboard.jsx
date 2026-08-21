@@ -23,9 +23,24 @@ import {
   Cell
 } from 'recharts';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export function Dashboard() {
   const [data, setData] = useState({
-    topStats: { totalInvestment: 0, remainingPrincipal: 0, totalInterestEarned: 0, activeCustomers: 0 },
+    topStats: {
+      totalInvestment: 0,
+      totalInvestmentTrend: 'up',
+      totalInvestmentTrendValue: '0.0%',
+      remainingPrincipal: 0,
+      remainingPrincipalTrend: 'down',
+      remainingPrincipalTrendValue: '0.0%',
+      totalInterestEarned: 0,
+      totalInterestEarnedTrend: 'up',
+      totalInterestEarnedTrendValue: '0.0%',
+      activeCustomers: 0,
+      activeCustomersTrend: 'up',
+      activeCustomersTrendValue: '0.0%'
+    },
     charts: { monthlyData: [], loanDistribution: [], totalLoansCount: 0 },
     lists: { recentCollections: [], overdueLoans: [] }
   });
@@ -35,7 +50,7 @@ export function Dashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/dashboard/summary');
+        const response = await fetch(`${API_URL}/dashboard/summary`);
         if (!response.ok) throw new Error('Failed to fetch dashboard data');
         const result = await response.json();
         setData(result);
@@ -70,7 +85,7 @@ export function Dashboard() {
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
           <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center">
             {title.includes('Total') || title.includes('Collection') || title.includes('Principal') ? <IndianRupee size={22} className="mr-1" /> : null}
-            {value.toLocaleString('en-IN')}
+            {(value || 0).toLocaleString('en-IN')}
           </h3>
         </div>
         <div className={`p-3 rounded-xl ${colorClass.replace('bg-', 'bg-opacity-20 text-').replace('500', '600')} dark:bg-opacity-20`}>
@@ -80,7 +95,7 @@ export function Dashboard() {
       <div className="flex items-center text-sm">
         <span className={`flex items-center font-medium ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
           {trend === 'up' ? <ArrowUpRight size={16} className="mr-1" /> : <ArrowDownRight size={16} className="mr-1" />}
-          {trendValue}
+          {trendValue || '0.0%'}
         </span>
         <span className="text-slate-500 dark:text-slate-400 ml-2">vs last month</span>
       </div>
@@ -118,10 +133,38 @@ export function Dashboard() {
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Investment" value={topStats.totalInvestment} icon={WalletCards} trend="up" trendValue="12.5%" colorClass="bg-blue-500" />
-        <StatCard title="Remaining Principal" value={topStats.remainingPrincipal} icon={IndianRupee} trend="down" trendValue="4.2%" colorClass="bg-emerald-500" />
-        <StatCard title="Total Interest Earned" value={topStats.totalInterestEarned} icon={TrendingUp} trend="up" trendValue="18.2%" colorClass="bg-purple-500" />
-        <StatCard title="Active Customers" value={topStats.activeCustomers} icon={Users} trend="up" trendValue="5.1%" colorClass="bg-orange-500" />
+        <StatCard
+          title="Total Investment"
+          value={topStats?.totalInvestment}
+          icon={WalletCards}
+          trend={topStats?.totalInvestmentTrend || 'up'}
+          trendValue={topStats?.totalInvestmentTrendValue || '0.0%'}
+          colorClass="bg-blue-500"
+        />
+        <StatCard
+          title="Remaining Principal"
+          value={topStats?.remainingPrincipal}
+          icon={IndianRupee}
+          trend={topStats?.remainingPrincipalTrend || 'down'}
+          trendValue={topStats?.remainingPrincipalTrendValue || '0.0%'}
+          colorClass="bg-emerald-500"
+        />
+        <StatCard
+          title="Total Interest Earned"
+          value={topStats?.totalInterestEarned}
+          icon={TrendingUp}
+          trend={topStats?.totalInterestEarnedTrend || 'up'}
+          trendValue={topStats?.totalInterestEarnedTrendValue || '0.0%'}
+          colorClass="bg-purple-500"
+        />
+        <StatCard
+          title="Active Customers"
+          value={topStats?.activeCustomers}
+          icon={Users}
+          trend={topStats?.activeCustomersTrend || 'up'}
+          trendValue={topStats?.activeCustomersTrendValue || '0.0%'}
+          colorClass="bg-orange-500"
+        />
       </div>
 
       {/* Charts Section */}

@@ -29,6 +29,7 @@ export function Reports() {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [reportType, setReportType] = useState('monthly');
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -55,10 +56,10 @@ export function Reports() {
     );
   }
 
-  const currentData = data.monthlyData;
-  const totalDisbursed = currentData.reduce((acc, curr) => acc + curr.disbursed, 0);
-  const totalCollected = currentData.reduce((acc, curr) => acc + curr.collected, 0);
-  const totalInterest = currentData.reduce((acc, curr) => acc + (curr.interest || 0), 0);
+  const currentData = reportType === 'weekly' ? (data.weeklyData || []) : (data.monthlyData || []);
+  const totalDisbursed = data.summary?.totalDisbursed ?? currentData.reduce((acc, curr) => acc + curr.disbursed, 0);
+  const totalCollected = data.summary?.totalCollected ?? currentData.reduce((acc, curr) => acc + curr.collected, 0);
+  const totalInterest = data.summary?.totalInterest ?? currentData.reduce((acc, curr) => acc + (curr.interest || 0), 0);
 
   const handleDownloadReport = async () => {
     if (!data) return;
