@@ -63,6 +63,9 @@ function App() {
           <Route path="audit-log" element={<Placeholder title="Audit Log" />} />
           <Route path="backup" element={<Placeholder title="Backup & Restore" />} />
         </Route>
+
+        {/* Catch-all fallback route for client-side routing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
