@@ -850,6 +850,86 @@ app.post('/api/payments', async (req, res) => {
   }
 });
 
+// Helper function to recalculate loan remaining balance and status from all its payments
+async function recalculateLoanBalance(loanId) {
+  const loan = await prisma.loan.findUnique({
+    where: { id: loanId },
+    include: { payments: true }
+  });
+  if (!loan) return null;
+
+  const totalPrincipalPaid = loan.payments.reduce((sum, p) => sum + (Number(p.principalPaid) || 0), 0);
+  const newRemainingPrincipal = Math.max(0, loan.principalAmount - totalPrincipalPaid);
+  const newStatus = newRemainingPrincipal === 0 ? 'Completed' : (loan.status === 'Completed' ? 'Active' : loan.status);
+
+  return await prisma.loan.update({
+    where: { id: loanId },
+    data: {
+      remainingPrincipal: newRemainingPrincipal,
+      status: newStatus
+    }
+  });
+}
+
+app.put('/api/payments/:id', async (req, res) => {
+  try {
+    const { amount, principalPaid, interestPaid, paymentType, paymentDate } = req.body;
+
+    const existingPayment = await prisma.payment.findUnique({ where: { id: req.params.id } });
+    if (!existingPayment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    const parsedPrincipal = principalPaid !== undefined ? Number(principalPaid) : existingPayment.principalPaid;
+    const parsedInterest = interestPaid !== undefined ? Number(interestPaid) : existingPayment.interestPaid;
+    const parsedAmount = amount !== undefined ? Number(amount) : (parsedPrincipal + parsedInterest);
+    const pDate = paymentDate ? parseLoanOrPaymentDate(paymentDate) : existingPayment.paymentDate;
+    const pType = paymentType || existingPayment.paymentType;
+
+    const updatedPayment = await prisma.payment.update({
+      where: { id: req.params.id },
+      data: {
+        amount: parsedAmount,
+        principalPaid: parsedPrincipal,
+        interestPaid: parsedInterest,
+        paymentType: pType,
+        paymentDate: pDate
+      }
+    });
+
+    const updatedLoan = await recalculateLoanBalance(existingPayment.loanId);
+
+    res.json({
+      message: 'Payment updated successfully',
+      payment: updatedPayment,
+      loan: updatedLoan
+    });
+  } catch (error) {
+    console.error('Failed to update payment:', error);
+    res.status(500).json({ error: 'Failed to update payment' });
+  }
+});
+
+app.delete('/api/payments/:id', async (req, res) => {
+  try {
+    const payment = await prisma.payment.findUnique({ where: { id: req.params.id } });
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    await prisma.payment.delete({ where: { id: req.params.id } });
+    const updatedLoan = await recalculateLoanBalance(payment.loanId);
+
+    res.json({
+      message: 'Payment deleted successfully',
+      loan: updatedLoan
+    });
+  } catch (error) {
+    console.error('Failed to delete payment:', error);
+    res.status(500).json({ error: 'Failed to delete payment' });
+  }
+});
+
 // Serve frontend static build and handle SPA fallback for non-API routes (if dist folder exists)
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
