@@ -18,7 +18,8 @@ import {
   BadgePercent,
   CreditCard,
   X,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -34,6 +35,8 @@ export function Customers() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [addModalError, setAddModalError] = useState('');
+  const [editModalError, setEditModalError] = useState('');
   const navigate = useNavigate();
   
   const cn = (...inputs) => twMerge(clsx(inputs));
@@ -69,6 +72,33 @@ export function Customers() {
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
+    setAddModalError('');
+
+    if (!newCustomer.name?.trim()) {
+      setAddModalError('Full Name is required.');
+      return;
+    }
+    if (!newCustomer.phone?.trim()) {
+      setAddModalError('Contact Number is required.');
+      return;
+    }
+    if (!newCustomer.location?.trim()) {
+      setAddModalError('Place / Location is required.');
+      return;
+    }
+    if (!newCustomer.loanAmount || Number(newCustomer.loanAmount) <= 0) {
+      setAddModalError('Initial Loan Amount is required and must be greater than 0.');
+      return;
+    }
+    if (!newCustomer.repaymentType) {
+      setAddModalError('Repayment Schedule is required.');
+      return;
+    }
+    if (!newCustomer.loanGivenDate) {
+      setAddModalError('Loan Given Date is required.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const now = new Date();
@@ -92,9 +122,10 @@ export function Customers() {
 
       setCustomers((currentCustomers) => [customer, ...currentCustomers]);
       setIsAddModalOpen(false);
+      setAddModalError('');
       setNewCustomer({ name: '', phone: '', location: '', aadharNumber: '', loanAmount: '', interestRate: '', interestType: 'Monthly', repaymentType: 'Monthly', loanGivenDate: new Date().toISOString().split('T')[0] });
     } catch (saveError) {
-      setError(saveError.message);
+      setAddModalError(saveError.message);
     } finally {
       setIsSaving(false);
     }
@@ -113,21 +144,88 @@ export function Customers() {
   };
 
   const handleEditClick = (customer) => {
-    setEditingCustomer(customer);
+    setEditModalError('');
+    let formattedDate = '';
+    if (customer.loanGivenDate) {
+      try {
+        const d = new Date(customer.loanGivenDate);
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.toISOString().split('T')[0];
+        }
+      } catch (err) {
+        formattedDate = '';
+      }
+    }
+    setEditingCustomer({
+      id: customer.id,
+      name: customer.name || '',
+      phone: customer.phone || '',
+      location: customer.location || '',
+      aadharNumber: customer.aadharNumber || '',
+      loanAmount: customer.loanAmount !== undefined && customer.loanAmount !== null ? customer.loanAmount : '',
+      interestRate: customer.interestRate !== undefined && customer.interestRate !== null ? customer.interestRate : '',
+      interestType: customer.interestType || 'Monthly',
+      repaymentType: customer.repaymentType || 'Monthly',
+      loanGivenDate: formattedDate
+    });
     setIsEditModalOpen(true);
   };
 
   const handleUpdateCustomer = async (e) => {
     e.preventDefault();
+    setEditModalError('');
+
+    if (!editingCustomer.name?.trim()) {
+      setEditModalError('Full Name is required.');
+      return;
+    }
+    if (!editingCustomer.phone?.trim()) {
+      setEditModalError('Contact Number is required.');
+      return;
+    }
+    if (!editingCustomer.location?.trim()) {
+      setEditModalError('Place / Location is required.');
+      return;
+    }
+    if (!editingCustomer.loanAmount || Number(editingCustomer.loanAmount) <= 0) {
+      setEditModalError('Initial Loan Amount is required and must be greater than 0.');
+      return;
+    }
+    if (!editingCustomer.repaymentType) {
+      setEditModalError('Repayment Schedule is required.');
+      return;
+    }
+    if (!editingCustomer.loanGivenDate) {
+      setEditModalError('Loan Given Date is required.');
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const now = new Date();
+      let submissionDate = editingCustomer.loanGivenDate;
+      if (editingCustomer.loanGivenDate && typeof editingCustomer.loanGivenDate === 'string') {
+        const [y, m, d] = editingCustomer.loanGivenDate.split('T')[0].split('-').map(Number);
+        if (y === now.getFullYear() && (m - 1) === now.getMonth() && d === now.getDate()) {
+          submissionDate = now.toISOString();
+        } else {
+          submissionDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+        }
+      }
+
       const response = await fetch(`${API_URL}/customers/${editingCustomer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editingCustomer.name,
           phone: editingCustomer.phone,
-          location: editingCustomer.location
+          location: editingCustomer.location,
+          aadharNumber: editingCustomer.aadharNumber,
+          loanAmount: editingCustomer.loanAmount,
+          interestRate: editingCustomer.interestRate,
+          interestType: editingCustomer.interestType,
+          repaymentType: editingCustomer.repaymentType,
+          loanGivenDate: submissionDate
         }),
       });
       const updatedCustomer = await response.json();
@@ -138,8 +236,9 @@ export function Customers() {
       );
       setIsEditModalOpen(false);
       setEditingCustomer(null);
+      setEditModalError('');
     } catch (saveError) {
-      setError(saveError.message || 'Could not update the customer.');
+      setEditModalError(saveError.message || 'Could not update the customer.');
     } finally {
       setIsSaving(false);
     }
@@ -253,7 +352,7 @@ export function Customers() {
                 <Filter size={20} />
               </button>
               <button 
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => { setAddModalError(''); setIsAddModalOpen(true); }}
                 disabled={isLoading}
                 className="btn-primary flex-1 sm:flex-none flex items-center justify-center whitespace-nowrap"
               >
@@ -495,7 +594,7 @@ export function Customers() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={() => { setIsAddModalOpen(false); setAddModalError(''); }}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             
@@ -506,9 +605,12 @@ export function Customers() {
               className="relative w-full max-w-md max-h-[90vh] flex flex-col glass-card p-0 overflow-hidden shadow-2xl"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Customer</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Customer</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fields marked with <span className="text-red-500 font-semibold">*</span> are required</p>
+                </div>
                 <button 
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => { setIsAddModalOpen(false); setAddModalError(''); }}
                   className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:text-slate-200 transition-colors"
                 >
                   <X size={20} />
@@ -516,9 +618,17 @@ export function Customers() {
               </div>
 
               <form onSubmit={handleAddCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80 overflow-y-auto flex-1">
-                
+                {addModalError && (
+                  <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-400 border border-red-200 dark:border-red-900 rounded-xl">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span>{addModalError}</span>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
@@ -533,11 +643,14 @@ export function Customers() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Contact Number</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Contact Number <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
-                      type="text" 
+                      required
+                      type="tel" 
                       value={newCustomer.phone}
                       onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
                       className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
@@ -547,10 +660,13 @@ export function Customers() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Place / Location</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Place / Location <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <Map className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
+                      required
                       type="text" 
                       value={newCustomer.location}
                       onChange={(e) => setNewCustomer({...newCustomer, location: e.target.value})}
@@ -575,10 +691,14 @@ export function Customers() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Initial Loan Amount (₹)</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Initial Loan Amount (₹) <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <Wallet className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
+                      required
+                      min="1"
                       type="number" 
                       value={newCustomer.loanAmount}
                       onChange={(e) => setNewCustomer({...newCustomer, loanAmount: e.target.value})}
@@ -619,8 +739,11 @@ export function Customers() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Repayment Schedule</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Repayment Schedule <span className="text-red-500">*</span>
+                    </label>
                     <select 
+                      required
                       value={newCustomer.repaymentType}
                       onChange={(e) => setNewCustomer({...newCustomer, repaymentType: e.target.value})}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
@@ -633,8 +756,11 @@ export function Customers() {
                   </div>
                   
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Loan Given Date</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Loan Given Date <span className="text-red-500">*</span>
+                    </label>
                     <input 
+                      required
                       type="date"
                       value={newCustomer.loanGivenDate}
                       onChange={(e) => setNewCustomer({...newCustomer, loanGivenDate: e.target.value})}
@@ -646,7 +772,7 @@ export function Customers() {
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button"
-                    onClick={() => setIsAddModalOpen(false)}
+                    onClick={() => { setIsAddModalOpen(false); setAddModalError(''); }}
                     className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
                   >
                     Cancel
@@ -679,7 +805,7 @@ export function Customers() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsEditModalOpen(false)}
+              onClick={() => { setIsEditModalOpen(false); setEditModalError(''); }}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             
@@ -690,9 +816,12 @@ export function Customers() {
               className="relative w-full max-w-md max-h-[90vh] flex flex-col glass-card p-0 overflow-hidden shadow-2xl"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Customer</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Customer</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fields marked with <span className="text-red-500 font-semibold">*</span> are required</p>
+                </div>
                 <button 
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => { setIsEditModalOpen(false); setEditModalError(''); }}
                   className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:text-slate-200 transition-colors"
                 >
                   <X size={20} />
@@ -700,43 +829,153 @@ export function Customers() {
               </div>
 
               <form onSubmit={handleUpdateCustomer} className="p-6 space-y-5 bg-white/80 dark:bg-slate-900/80 overflow-y-auto flex-1">
-                
+                {editModalError && (
+                  <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-400 border border-red-200 dark:border-red-900 rounded-xl">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span>{editModalError}</span>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
                       required
                       type="text" 
-                      value={editingCustomer.name}
+                      value={editingCustomer.name || ''}
                       onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})}
                       className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                      placeholder="e.g. John Doe"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Contact Number</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Contact Number <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
-                      type="text" 
-                      value={editingCustomer.phone}
+                      required
+                      type="tel" 
+                      value={editingCustomer.phone || ''}
                       onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})}
                       className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                      placeholder="e.g. +91 9876543210"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Place / Location</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Place / Location <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <Map className="absolute left-3 top-3 text-slate-400" size={18} />
                     <input 
+                      required
                       type="text" 
-                      value={editingCustomer.location}
+                      value={editingCustomer.location || ''}
                       onChange={(e) => setEditingCustomer({...editingCustomer, location: e.target.value})}
                       className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                      placeholder="e.g. T Nagar, Chennai"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Aadhar Number <span className="text-slate-400 font-normal">(Optional)</span></label>
+                  <div className="relative">
+                    <CreditCard className="absolute left-3 top-3 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      value={editingCustomer.aadharNumber || ''}
+                      onChange={(e) => setEditingCustomer({...editingCustomer, aadharNumber: e.target.value})}
+                      className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                      placeholder="e.g. 1234 5678 9012"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Initial Loan Amount (₹) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Wallet className="absolute left-3 top-3 text-slate-400" size={18} />
+                    <input 
+                      required
+                      min="1"
+                      type="number" 
+                      value={editingCustomer.loanAmount !== undefined && editingCustomer.loanAmount !== null ? editingCustomer.loanAmount : ''}
+                      onChange={(e) => setEditingCustomer({...editingCustomer, loanAmount: e.target.value})}
+                      className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                      placeholder="e.g. 50000"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Rate (%)</label>
+                    <div className="relative">
+                      <BadgePercent className="absolute left-3 top-3 text-slate-400" size={18} />
+                      <input 
+                        type="number"
+                        step="0.1" 
+                        value={editingCustomer.interestRate !== undefined && editingCustomer.interestRate !== null ? editingCustomer.interestRate : ''}
+                        onChange={(e) => setEditingCustomer({...editingCustomer, interestRate: e.target.value})}
+                        className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                        placeholder="e.g. 2.5"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Period</label>
+                    <select 
+                      value={editingCustomer.interestType || 'Monthly'}
+                      onChange={(e) => setEditingCustomer({...editingCustomer, interestType: e.target.value})}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                    >
+                      <option value="Monthly">Monthly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Repayment Schedule <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      required
+                      value={editingCustomer.repaymentType || 'Monthly'}
+                      onChange={(e) => setEditingCustomer({...editingCustomer, repaymentType: e.target.value})}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
+                    >
+                      <option value="Daily">Daily</option>
+                      <option value="Weekly">Weekly</option>
+                      <option value="10 Days">10 Days</option>
+                      <option value="Monthly">Monthly</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Loan Given Date <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      required
+                      type="date"
+                      value={editingCustomer.loanGivenDate || ''}
+                      onChange={(e) => setEditingCustomer({...editingCustomer, loanGivenDate: e.target.value})}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
                     />
                   </div>
                 </div>
@@ -744,7 +983,7 @@ export function Customers() {
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button"
-                    onClick={() => setIsEditModalOpen(false)}
+                    onClick={() => { setIsEditModalOpen(false); setEditModalError(''); }}
                     className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
                   >
                     Cancel

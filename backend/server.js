@@ -9,7 +9,7 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -508,6 +508,7 @@ app.get('/api/customers', async (req, res) => {
         name: customer.name,
         phone: customer.phone,
         location: customer.location || 'N/A',
+        aadharNumber: customer.aadharNumber || '',
         status: customer.status,
         loanAmount: loan?.principalAmount ?? 0,
         remainingBalance: loan?.remainingPrincipal ?? 0,
@@ -532,6 +533,21 @@ app.post('/api/customers', async (req, res) => {
 
     if (!name?.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
+    }
+    if (!phone?.trim()) {
+      return res.status(400).json({ error: 'Contact number is required' });
+    }
+    if (!location?.trim()) {
+      return res.status(400).json({ error: 'Place / Location is required' });
+    }
+    if (!loanAmount || parsedLoanAmount <= 0) {
+      return res.status(400).json({ error: 'Initial loan amount is required and must be greater than 0' });
+    }
+    if (!repaymentType?.trim()) {
+      return res.status(400).json({ error: 'Repayment schedule is required' });
+    }
+    if (!loanGivenDate) {
+      return res.status(400).json({ error: 'Loan given date is required' });
     }
 
     const customer = await prisma.customer.create({
@@ -587,11 +603,13 @@ app.post('/api/customers', async (req, res) => {
       name: newCustomer.name,
       phone: newCustomer.phone,
       location: newCustomer.location || 'N/A',
-      aadharNumber: newCustomer.aadharNumber,
+      aadharNumber: newCustomer.aadharNumber || '',
       status: newCustomer.status,
       loanAmount: loan?.principalAmount ?? 0,
       remainingBalance: loan?.remainingPrincipal ?? 0,
       repaymentType: loan?.repaymentType ?? 'N/A',
+      interestRate: loan?.interestRate ?? 0,
+      interestType: loan?.interestType ?? 'Monthly',
       loanGivenDate: loan?.loanGivenDate ?? null,
       paymentsCount: loan?._count.payments ?? 0,
     });
@@ -615,13 +633,42 @@ app.delete('/api/customers/:id', async (req, res) => {
 
 app.put('/api/customers/:id', async (req, res) => {
   try {
-    const { name, phone, location, aadharNumber } = req.body;
+    const { 
+      name, 
+      phone, 
+      location, 
+      aadharNumber, 
+      loanAmount, 
+      interestRate, 
+      interestType, 
+      repaymentType, 
+      loanGivenDate 
+    } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
     }
+    if (!phone?.trim()) {
+      return res.status(400).json({ error: 'Contact number is required' });
+    }
+    if (!location?.trim()) {
+      return res.status(400).json({ error: 'Place / Location is required' });
+    }
 
-    const updatedCustomer = await prisma.customer.update({
+    const parsedLoanAmount = loanAmount !== undefined && loanAmount !== '' ? (Number(loanAmount) || 0) : undefined;
+    const parsedInterestRate = interestRate !== undefined && interestRate !== '' ? (Number(interestRate) || 0) : undefined;
+
+    if (parsedLoanAmount !== undefined && parsedLoanAmount <= 0) {
+      return res.status(400).json({ error: 'Initial loan amount is required and must be greater than 0' });
+    }
+    if (repaymentType !== undefined && !repaymentType?.trim()) {
+      return res.status(400).json({ error: 'Repayment schedule is required' });
+    }
+    if (loanGivenDate !== undefined && !loanGivenDate) {
+      return res.status(400).json({ error: 'Loan given date is required' });
+    }
+
+    await prisma.customer.update({
       where: { id: req.params.id },
       data: {
         name: name.trim(),
@@ -629,6 +676,67 @@ app.put('/api/customers/:id', async (req, res) => {
         location: location?.trim() || null,
         aadharNumber: aadharNumber?.trim() || null,
       },
+    });
+
+    // Check if customer already has a loan
+    const existingLoan = await prisma.loan.findFirst({
+      where: { customerId: req.params.id },
+      orderBy: { loanGivenDate: 'desc' },
+      include: { payments: true }
+    });
+
+    if (existingLoan) {
+      const loanDate = loanGivenDate ? parseLoanOrPaymentDate(loanGivenDate) : existingLoan.loanGivenDate;
+      const newPrincipal = parsedLoanAmount !== undefined ? parsedLoanAmount : existingLoan.principalAmount;
+      const totalPrincipalPaid = existingLoan.payments.reduce((sum, p) => sum + (Number(p.principalPaid) || 0), 0);
+      const newRemainingPrincipal = Math.max(0, newPrincipal - totalPrincipalPaid);
+      const newStatus = newRemainingPrincipal === 0 ? 'Completed' : (existingLoan.status === 'Completed' ? 'Active' : existingLoan.status);
+
+      await prisma.loan.update({
+        where: { id: existingLoan.id },
+        data: {
+          principalAmount: newPrincipal,
+          remainingPrincipal: newRemainingPrincipal,
+          status: newStatus,
+          interestRate: parsedInterestRate !== undefined ? parsedInterestRate : existingLoan.interestRate,
+          interestType: interestType || existingLoan.interestType,
+          repaymentType: repaymentType || existingLoan.repaymentType,
+          loanGivenDate: loanDate,
+        }
+      });
+    } else if (parsedLoanAmount !== undefined && parsedLoanAmount > 0) {
+      const loanDate = parseLoanOrPaymentDate(loanGivenDate);
+      const initialInterest = (parsedLoanAmount * (parsedInterestRate || 0)) / 100;
+      const loan = await prisma.loan.create({
+        data: {
+          customerId: req.params.id,
+          principalAmount: parsedLoanAmount,
+          remainingPrincipal: parsedLoanAmount,
+          interestRate: parsedInterestRate || 0,
+          interestType: interestType || 'Monthly',
+          repaymentType: repaymentType || 'Monthly',
+          loanGivenDate: loanDate,
+        }
+      });
+
+      if (initialInterest > 0) {
+        await prisma.payment.create({
+          data: {
+            loanId: loan.id,
+            customerId: req.params.id,
+            amount: initialInterest,
+            principalPaid: 0,
+            interestPaid: initialInterest,
+            paymentType: 'First Auto Interest',
+            paymentDate: loanDate,
+            status: 'Completed'
+          }
+        });
+      }
+    }
+
+    const updatedCustomer = await prisma.customer.findUnique({
+      where: { id: req.params.id },
       include: {
         loans: {
           orderBy: { loanGivenDate: 'desc' },
@@ -644,11 +752,13 @@ app.put('/api/customers/:id', async (req, res) => {
       name: updatedCustomer.name,
       phone: updatedCustomer.phone,
       location: updatedCustomer.location || 'N/A',
-      aadharNumber: updatedCustomer.aadharNumber,
+      aadharNumber: updatedCustomer.aadharNumber || '',
       status: updatedCustomer.status,
       loanAmount: loan?.principalAmount ?? 0,
       remainingBalance: loan?.remainingPrincipal ?? 0,
       repaymentType: loan?.repaymentType ?? 'N/A',
+      interestRate: loan?.interestRate ?? 0,
+      interestType: loan?.interestType ?? 'Monthly',
       loanGivenDate: loan?.loanGivenDate ?? null,
       paymentsCount: loan?._count.payments ?? 0,
     });
@@ -935,11 +1045,11 @@ const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      return next();
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(distPath, 'index.html'));
     }
-    res.sendFile(path.join(distPath, 'index.html'));
+    next();
   });
 }
 
