@@ -55,30 +55,35 @@ app.get('/api/dashboard/summary', async (req, res) => {
       remainingPrincipalAgg,
       totalInterestAgg,
       activeCustomersCount,
-      loanDistributionRaw,
       recentCollections,
-      overdueLoansRaw,
       paymentsRaw,
-      loansRaw
+      allLoansRaw
     ] = await Promise.all([
       prisma.loan.aggregate({ _sum: { principalAmount: true } }),
       prisma.loan.aggregate({ _sum: { remainingPrincipal: true } }),
       prisma.payment.aggregate({ _sum: { interestPaid: true } }),
       prisma.customer.count({ where: { status: 'Active' } }),
-      prisma.loan.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.payment.findMany({
-        take: 4,
+        take: 6,
         orderBy: { paymentDate: 'desc' },
-        include: { customer: { select: { name: true } } }
-      }),
-      prisma.loan.findMany({
-        where: { status: 'Overdue' },
-        take: 3,
-        include: { customer: { select: { name: true } } }
+        include: { customer: { select: { id: true, name: true } } }
       }),
       prisma.payment.findMany({ select: { paymentDate: true, amount: true, principalPaid: true, interestPaid: true } }),
-      prisma.loan.findMany({ select: { loanGivenDate: true, principalAmount: true } })
+      prisma.loan.findMany({
+        select: {
+          id: true,
+          principalAmount: true,
+          remainingPrincipal: true,
+          loanGivenDate: true,
+          repaymentType: true,
+          status: true,
+          customer: { select: { id: true, name: true, phone: true } },
+          payments: { select: { id: true, paymentDate: true, amount: true, paymentType: true } }
+        }
+      })
     ]);
+
+    const loansRaw = allLoansRaw.map(l => ({ loanGivenDate: l.loanGivenDate, principalAmount: l.principalAmount }));
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -203,21 +208,100 @@ app.get('/api/dashboard/summary', async (req, res) => {
       monthlyData.push({ name: monthName, income, expenses });
     }
 
-    // Format Loan Distribution
-    const colorMap = { 'Active': '#10B981', 'Pending': '#F59E0B', 'Closed': '#3B82F6', 'Overdue': '#EF4444' };
-    const loanDistribution = loanDistributionRaw.map(l => ({
-      name: l.status,
-      value: l._count._all,
-      color: colorMap[l.status] || '#CBD5E1'
-    }));
+    // Calculate Overdue Loans dynamically
+    const nowMidnight = new Date(currentYear, currentMonth, now.getDate());
+    const overdueLoansList = [];
 
-    // Ensure total loans are calculated
+    for (const l of allLoansRaw) {
+      if (!l.loanGivenDate) continue;
+      if (l.remainingPrincipal <= 0 || l.status === 'Completed' || l.status === 'Closed') continue;
+
+      const givenDate = new Date(l.loanGivenDate);
+      const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
+      const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
+      const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+
+      let periodsElapsed = 0;
+      let periodLabel = '';
+      let periodDays = 1;
+
+      if (l.repaymentType === 'Daily') {
+        periodsElapsed = diffDays;
+        periodLabel = 'Day(s)';
+        periodDays = 1;
+      } else if (l.repaymentType === 'Weekly') {
+        periodsElapsed = Math.floor(diffDays / 7);
+        periodLabel = 'Week(s)';
+        periodDays = 7;
+      } else if (l.repaymentType === '10 Days') {
+        periodsElapsed = Math.floor(diffDays / 10);
+        periodLabel = 'Period(s)';
+        periodDays = 10;
+      } else if (l.repaymentType === 'Monthly') {
+        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
+        months -= givenDateMidnight.getMonth();
+        months += nowMidnight.getMonth();
+        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
+          months--;
+        }
+        periodsElapsed = Math.max(0, months);
+        periodLabel = 'Month(s)';
+        periodDays = 30;
+      }
+
+      const actualPayments = l.payments?.length || 0;
+      const hasInitial = actualPayments > 0;
+      const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
+      const pendingCount = expectedPayments - actualPayments;
+
+      if (pendingCount > 0) {
+        const daysOverdue = Math.max(1, pendingCount * periodDays);
+        overdueLoansList.push({
+          id: l.id,
+          customerId: l.customer?.id,
+          name: l.customer?.name || 'Unknown',
+          phone: l.customer?.phone || '',
+          daysOverdue,
+          pendingPeriods: pendingCount,
+          periodLabel: `${pendingCount} ${periodLabel} Pending`,
+          amount: l.remainingPrincipal,
+          repaymentType: l.repaymentType
+        });
+      }
+    }
+
+    overdueLoansList.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+    // Format Loan Distribution
+    const overdueLoanIds = new Set(overdueLoansList.map(l => l.id));
+    let activeCount = 0;
+    let overdueCount = 0;
+    let completedCount = 0;
+
+    for (const l of allLoansRaw) {
+      if (l.remainingPrincipal <= 0 || l.status === 'Completed' || l.status === 'Closed') {
+        completedCount++;
+      } else if (overdueLoanIds.has(l.id)) {
+        overdueCount++;
+      } else {
+        activeCount++;
+      }
+    }
+
+    const colorMap = { 'Active': '#10B981', 'Overdue': '#EF4444', 'Completed': '#3B82F6' };
+    const loanDistribution = [
+      { name: 'Active', value: activeCount, color: colorMap['Active'] },
+      { name: 'Overdue', value: overdueCount, color: colorMap['Overdue'] },
+      { name: 'Completed', value: completedCount, color: colorMap['Completed'] }
+    ].filter(item => item.value > 0);
+
     const totalLoansCount = loanDistribution.reduce((acc, curr) => acc + curr.value, 0);
 
     // Format Recent Collections
     const formattedCollections = recentCollections.map(p => ({
       id: p.id,
-      name: p.customer.name,
+      customerId: p.customer?.id,
+      name: p.customer?.name || 'Unknown',
       amount: p.amount,
       type: p.paymentType,
       status: p.status,
@@ -225,15 +309,17 @@ app.get('/api/dashboard/summary', async (req, res) => {
     }));
 
     // Format Overdue Loans
-    const formattedOverdue = overdueLoansRaw.map(l => {
-      const daysOverdue = l.nextDueDate ? Math.floor((new Date() - new Date(l.nextDueDate)) / (1000 * 60 * 60 * 24)) : 0;
-      return {
-        id: l.id,
-        name: l.customer.name,
-        daysOverdue: daysOverdue > 0 ? daysOverdue : 'Unknown',
-        amount: l.remainingPrincipal
-      };
-    });
+    const formattedOverdue = overdueLoansList.slice(0, 10).map(l => ({
+      id: l.id,
+      customerId: l.customerId,
+      name: l.name,
+      phone: l.phone,
+      daysOverdue: l.daysOverdue,
+      pendingPeriods: l.pendingPeriods,
+      periodLabel: l.periodLabel,
+      amount: l.amount,
+      repaymentType: l.repaymentType
+    }));
 
     res.json({
       topStats: {

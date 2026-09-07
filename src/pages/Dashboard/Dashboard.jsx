@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   IndianRupee,
   TrendingUp,
@@ -8,7 +9,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  MessageCircle
 } from 'lucide-react';
 import {
   AreaChart,
@@ -46,6 +48,19 @@ export function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  const handleRemind = (loan) => {
+    let cleanPhone = (loan.phone || '').replace(/\D/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+
+    const message = encodeURIComponent(
+      `வணக்கம் ${loan.name},\nதாங்கள் பெற்ற கடன் தவணைத் தொகை ₹${Number(loan.amount).toLocaleString('en-IN')} நிலுவையில் உள்ளது (${loan.periodLabel || 'Overdue'}). தயவுசெய்து விரைவில் செலுத்தவும்.\n\nDear ${loan.name}, this is a gentle reminder from AK Finance regarding your pending loan repayment of ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}). Kindly clear the dues at your earliest convenience.\n\nநன்றி / Thank you!`
+    );
+
+    const url = cleanPhone ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${message}` : `https://wa.me/?text=${message}`;
+    window.open(url, '_blank');
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -124,7 +139,10 @@ export function Dashboard() {
           <p className="text-slate-500 dark:text-slate-400">Welcome back, here's your financial summary.</p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-primary flex items-center">
+          <button 
+            onClick={() => navigate('/reports')}
+            className="btn-primary flex items-center cursor-pointer shadow-blue-500/20"
+          >
             <TrendingUp size={18} className="mr-2" />
             Generate Report
           </button>
@@ -239,18 +257,27 @@ export function Dashboard() {
         <motion.div variants={itemVariants} className="glass-card p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Recent Collections</h3>
-            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">View All</button>
+            <button 
+              onClick={() => navigate('/collections')}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm font-medium hover:underline cursor-pointer flex items-center gap-1"
+            >
+              View All →
+            </button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {recentCollections.map(item => (
-              <div key={item.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+              <div 
+                key={item.id} 
+                onClick={() => item.customerId && navigate(`/customers/${item.customerId}`)}
+                className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border border-transparent hover:border-slate-100 dark:hover:border-slate-700"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-semibold">
                     {item.name.charAt(0)}
                   </div>
                   <div>
                     <h4 className="font-medium text-slate-800 dark:text-white">{item.name}</h4>
-                    <p className="text-xs text-slate-500">{item.type} • {item.date}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.type} • {item.date}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -273,32 +300,74 @@ export function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Quick Actions</h3>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <button className="p-4 rounded-xl border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 transition-colors">
-              <Users size={24} className="mb-2" />
-              <span className="font-medium">Add Customer</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+            <button 
+              onClick={() => navigate('/customers?action=add')}
+              className="p-3.5 rounded-xl border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 transition-all hover:scale-[1.02] cursor-pointer"
+            >
+              <Users size={22} className="mb-1.5" />
+              <span className="font-medium text-xs sm:text-sm">Add Customer</span>
             </button>
-            <button className="p-4 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 transition-colors">
-              <WalletCards size={24} className="mb-2" />
-              <span className="font-medium">Create Loan</span>
+            <button 
+              onClick={() => navigate('/customers?action=add')}
+              className="p-3.5 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 transition-all hover:scale-[1.02] cursor-pointer"
+            >
+              <WalletCards size={22} className="mb-1.5" />
+              <span className="font-medium text-xs sm:text-sm">Create Loan</span>
+            </button>
+            <button 
+              onClick={() => navigate('/collections')}
+              className="p-3.5 rounded-xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-purple-100/60 dark:hover:bg-purple-900/30 flex flex-col items-center justify-center text-purple-600 dark:text-purple-400 transition-all hover:scale-[1.02] cursor-pointer col-span-2 sm:col-span-1"
+            >
+              <IndianRupee size={22} className="mb-1.5" />
+              <span className="font-medium text-xs sm:text-sm">Record Payment</span>
             </button>
           </div>
 
-          <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider mb-3">
-            Critical Overdue ({overdueLoans.length})
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider">
+              Critical Overdue ({overdueLoans.length})
+            </h3>
+            {overdueLoans.length > 0 && (
+              <button
+                onClick={() => navigate('/collections')}
+                className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-normal hover:underline cursor-pointer"
+              >
+                View in Collections →
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
             {overdueLoans.map(loan => (
-              <div key={loan.id} className="flex items-center justify-between p-3 rounded-xl border border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10">
-                <div>
-                  <h4 className="font-medium text-slate-800 dark:text-slate-200">{loan.name}</h4>
-                  <p className="text-xs text-red-500">
-                    {loan.daysOverdue !== 'Unknown' ? `Overdue by ${loan.daysOverdue} days` : 'Overdue (Date Unknown)'}
+              <div 
+                key={loan.id} 
+                className="flex items-center justify-between p-3 rounded-xl border border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+              >
+                <div 
+                  className="cursor-pointer flex-1"
+                  onClick={() => loan.customerId && navigate(`/customers/${loan.customerId}`)}
+                >
+                  <h4 className="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    {loan.name}
+                  </h4>
+                  <p className="text-xs text-red-500 mt-0.5">
+                    {loan.periodLabel ? `${loan.periodLabel} • ` : ''}
+                    {loan.daysOverdue && loan.daysOverdue !== 'Unknown' ? `Overdue by ${loan.daysOverdue} days` : 'Payment Overdue'}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold text-slate-800 dark:text-white text-sm">₹{loan.amount.toLocaleString()}</span>
-                  <button className="px-3 py-1 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 transition-colors">
+                  <span className="font-semibold text-slate-800 dark:text-white text-sm">
+                    ₹{Number(loan.amount).toLocaleString('en-IN')}
+                  </span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemind(loan);
+                    }}
+                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-red-500/20 cursor-pointer"
+                    title={loan.phone ? `Send WhatsApp reminder to ${loan.phone}` : 'Send reminder'}
+                  >
+                    <MessageCircle size={13} />
                     Remind
                   </button>
                 </div>

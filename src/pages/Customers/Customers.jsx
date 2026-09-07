@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, 
   Plus, 
@@ -38,6 +38,14 @@ export function Customers() {
   const [addModalError, setAddModalError] = useState('');
   const [editModalError, setEditModalError] = useState('');
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'add') {
+      setIsAddModalOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   
   const cn = (...inputs) => twMerge(clsx(inputs));
 
