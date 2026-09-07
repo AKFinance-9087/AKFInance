@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useLanguage } from '../../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -69,6 +70,7 @@ function StatCard({ label, value, icon: Icon, color }) {
 }
 
 export function Collections() {
+  const { t } = useLanguage();
   const [loans, setLoans] = useState([]);
   const [recentPayments, setRecentPayments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -315,8 +317,8 @@ export function Collections() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Payment Collection</h1>
-            <p className="text-slate-500 dark:text-slate-400">Record payments and track outstanding balances in real time.</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t('daily_collections')}</h1>
+            <p className="text-slate-500 dark:text-slate-400">{t('daily_collections_desc')}</p>
           </div>
           <button
             onClick={fetchAll}
@@ -339,27 +341,27 @@ export function Collections() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
             <RefreshCw size={32} className="animate-spin" />
-            <p>Loading loans and payment history…</p>
+            <p>{t('loading')}</p>
           </div>
         ) : (
           <>
             {/* Top Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total Loans" value={loans.length} icon={Wallet} color="border-blue-500" />
+              <StatCard label={t('loans')} value={loans.length} icon={Wallet} color="border-blue-500" />
               <StatCard
-                label="Active Loans"
+                label={t('active_loans_count')}
                 value={loans.filter((l) => l.status === 'Active').length}
                 icon={TrendingDown}
                 color="border-emerald-500"
               />
               <StatCard
-                label="Overdue Loans"
+                label={t('overdue')}
                 value={loans.filter((l) => calculatePending(l).isPending).length}
                 icon={AlertCircle}
                 color="border-red-500"
               />
               <StatCard
-                label="Payments Today"
+                label={t('collected_today')}
                 value={recentPayments.filter(
                   (p) => new Date(p.paymentDate).toDateString() === new Date().toDateString()
                 ).length}
@@ -376,13 +378,13 @@ export function Collections() {
                 <div className="glass-card p-6 space-y-5">
                   <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     <IndianRupee size={18} className="text-blue-500" />
-                    Record a Payment
+                    {t('record_payment')}
                   </h2>
 
                   {/* Loan Search + Filter */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Select Customer / Loan
+                      {t('customer')}
                     </label>
 
                     <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-full sm:w-fit">
@@ -397,7 +399,7 @@ export function Collections() {
                               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
                           )}
                         >
-                          {type}
+                          {type === 'All' ? t('all') : type === 'Daily' ? t('daily') : type === 'Weekly' ? t('weekly') : type === 'Monthly' ? t('monthly') : type}
                         </button>
                       ))}
                     </div>
@@ -468,7 +470,7 @@ export function Collections() {
 
                       {/* Payment Type */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Type</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('payment_type')}</label>
                         <div className="grid grid-cols-2 gap-2">
                           {['Interest Only', 'Principal Only'].map((type) => (
                             <button
@@ -482,7 +484,7 @@ export function Collections() {
                                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400'
                               )}
                             >
-                              {type}
+                              {type === 'Interest Only' ? t('interest_only') : t('principal_only')}
                             </button>
                           ))}
                         </div>
@@ -491,7 +493,7 @@ export function Collections() {
                       {/* Amount */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                          {paymentType === 'Interest Only' ? 'Interest Amount Received (₹)' : 'Principal Amount Received (₹)'}
+                          {paymentType === 'Interest Only' ? `${t('interest_only')} (₹)` : `${t('principal_only')} (₹)`}
                         </label>
                         <div className="relative">
                           <input
@@ -499,7 +501,7 @@ export function Collections() {
                             min="0"
                             value={paymentAmount}
                             onChange={(e) => setPaymentAmount(e.target.value)}
-                            placeholder={paymentType === 'Interest Only' ? 'Enter interest amount' : 'Enter principal amount'}
+                            placeholder={paymentType === 'Interest Only' ? t('interest_only') : t('principal_only')}
                             className="w-full p-3 pl-10 text-2xl font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white transition-all"
                           />
                           <IndianRupee className="absolute left-3 top-4 text-slate-400" size={20} />
@@ -517,7 +519,7 @@ export function Collections() {
                               }}
                               className="text-xs px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-900/30 hover:bg-orange-100 transition-colors"
                             >
-                              Interest only ₹{selectedLoan.interestDue.toLocaleString()}
+                              {t('interest_only')} ₹{selectedLoan.interestDue.toLocaleString()}
                             </button>
                           )}
                           {selectedLoan.remainingPrincipal > 0 && (
@@ -529,14 +531,14 @@ export function Collections() {
                               }}
                               className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 transition-colors"
                             >
-                              Full principal ₹{selectedLoan.remainingPrincipal.toLocaleString()}
+                              {t('principal_only')} ₹{selectedLoan.remainingPrincipal.toLocaleString()}
                             </button>
                           )}
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Date & Time</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('date')}</label>
                         <div className="relative">
                           <input
                             type="datetime-local"
@@ -559,7 +561,7 @@ export function Collections() {
                         ) : (
                           <CheckCircle2 size={20} />
                         )}
-                        {isSubmitting ? 'Processing…' : 'Confirm Payment'}
+                        {isSubmitting ? t('loading') : t('submit_payment')}
                       </button>
                     </>
                   )}

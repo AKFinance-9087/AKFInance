@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { 
@@ -6,14 +5,7 @@ import {
   Users, 
   Banknote, 
   BarChart3, 
-  ReceiptText, 
-  Briefcase, 
-  Bell, 
-  FileText, 
-  LineChart, 
   Settings, 
-  History, 
-  DatabaseBackup, 
   LogOut,
   ChevronLeft,
   ChevronRight

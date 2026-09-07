@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   IndianRupee,
   TrendingUp,
@@ -28,6 +29,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function Dashboard() {
+  const { t, language } = useLanguage();
   const [data, setData] = useState({
     topStats: {
       totalInvestment: 0,
@@ -46,7 +48,6 @@ export function Dashboard() {
     charts: { monthlyData: [], loanDistribution: [], totalLoansCount: 0 },
     lists: { recentCollections: [], overdueLoans: [] }
   });
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
@@ -54,10 +55,16 @@ export function Dashboard() {
     let cleanPhone = (loan.phone || '').replace(/\D/g, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
 
-    const message = encodeURIComponent(
-      `வணக்கம் ${loan.name},\nதாங்கள் பெற்ற கடன் தவணைத் தொகை ₹${Number(loan.amount).toLocaleString('en-IN')} நிலுவையில் உள்ளது (${loan.periodLabel || 'Overdue'}). தயவுசெய்து விரைவில் செலுத்தவும்.\n\nDear ${loan.name}, this is a gentle reminder from AK Finance regarding your pending loan repayment of ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}). Kindly clear the dues at your earliest convenience.\n\nநன்றி / Thank you!`
-    );
+    let reminderText = '';
+    if (language === 'tanglish') {
+      reminderText = `Vanakkam ${loan.name},\nAK Finance-la irundhu ungal kadan thavanai thogai ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}) baaki irukkiradhu. Dayavuseithu seekkiram kattavum.\n\nNandri!`;
+    } else if (language === 'ta') {
+      reminderText = `வணக்கம் ${loan.name},\nதாங்கள் பெற்ற கடன் தவணைத் தொகை ₹${Number(loan.amount).toLocaleString('en-IN')} நிலுவையில் உள்ளது (${loan.periodLabel || 'Overdue'}). தயவுசெய்து விரைவில் செலுத்தவும்.\n\nநன்றி!`;
+    } else {
+      reminderText = `Dear ${loan.name},\nThis is a gentle reminder from AK Finance regarding your pending loan repayment of ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}). Kindly clear the dues at your earliest convenience.\n\nThank you!`;
+    }
 
+    const message = encodeURIComponent(reminderText);
     const url = cleanPhone ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${message}` : `https://wa.me/?text=${message}`;
     window.open(url, '_blank');
   };
@@ -72,8 +79,6 @@ export function Dashboard() {
       } catch (err) {
         console.error("Dashboard fetch error:", err);
         setError("Could not connect to database. Showing empty layout.");
-      } finally {
-        setLoading(false);
       }
     };
     fetchDashboardData();
@@ -92,14 +97,14 @@ export function Dashboard() {
     visible: { y: 0, opacity: 1 }
   };
 
-  const StatCard = ({ title, value, icon: Icon, trend, trendValue, colorClass }) => (
+  const StatCard = ({ title, value, icon: Icon, trend, trendValue, colorClass, isCurrency = true }) => (
     <motion.div variants={itemVariants} className="glass-card p-6 relative overflow-hidden group">
       <div className={`absolute top-0 right-0 w-24 h-24 rounded-bl-full opacity-10 transition-transform group-hover:scale-110 ${colorClass}`}></div>
       <div className="flex justify-between items-start mb-4">
         <div>
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
           <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center">
-            {title.includes('Total') || title.includes('Collection') || title.includes('Principal') ? <IndianRupee size={22} className="mr-1" /> : null}
+            {isCurrency && <IndianRupee size={22} className="mr-1" />}
             {(value || 0).toLocaleString('en-IN')}
           </h3>
         </div>
@@ -135,8 +140,8 @@ export function Dashboard() {
       )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h1>
-          <p className="text-slate-500 dark:text-slate-400">Welcome back, here's your financial summary.</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t('financial_overview')}</h1>
+          <p className="text-slate-500 dark:text-slate-400">{t('financial_overview_desc')}</p>
         </div>
         <div className="flex gap-3">
           <button 
@@ -144,7 +149,7 @@ export function Dashboard() {
             className="btn-primary flex items-center cursor-pointer shadow-blue-500/20"
           >
             <TrendingUp size={18} className="mr-2" />
-            Generate Report
+            {t('generate_report')}
           </button>
         </div>
       </div>
@@ -152,43 +157,47 @@ export function Dashboard() {
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Investment"
+          title={t('total_principal_disbursed')}
           value={topStats?.totalInvestment}
           icon={WalletCards}
           trend={topStats?.totalInvestmentTrend || 'up'}
           trendValue={topStats?.totalInvestmentTrendValue || '0.0%'}
           colorClass="bg-blue-500"
+          isCurrency={true}
         />
         <StatCard
-          title="Remaining Principal"
+          title={t('remaining_principal')}
           value={topStats?.remainingPrincipal}
           icon={IndianRupee}
           trend={topStats?.remainingPrincipalTrend || 'down'}
           trendValue={topStats?.remainingPrincipalTrendValue || '0.0%'}
           colorClass="bg-emerald-500"
+          isCurrency={true}
         />
         <StatCard
-          title="Total Interest Earned"
+          title={t('total_interest_earned')}
           value={topStats?.totalInterestEarned}
           icon={TrendingUp}
           trend={topStats?.totalInterestEarnedTrend || 'up'}
           trendValue={topStats?.totalInterestEarnedTrendValue || '0.0%'}
           colorClass="bg-purple-500"
+          isCurrency={true}
         />
         <StatCard
-          title="Active Customers"
+          title={t('active_loans_count')}
           value={topStats?.activeCustomers}
           icon={Users}
           trend={topStats?.activeCustomersTrend || 'up'}
           trendValue={topStats?.activeCustomersTrendValue || '0.0%'}
           colorClass="bg-orange-500"
+          isCurrency={false}
         />
       </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div variants={itemVariants} className="glass-card p-6 lg:col-span-2">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Income vs Expenses (Last 7 Months)</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">{t('monthly_trends')}</h3>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -214,7 +223,7 @@ export function Dashboard() {
         </motion.div>
 
         <motion.div variants={itemVariants} className="glass-card p-6">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Loan Distribution</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">{t('loan_distribution')}</h3>
           <div className="h-64 w-full flex items-center justify-center relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -234,18 +243,20 @@ export function Dashboard() {
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center flex-col">
               <span className="text-2xl font-bold text-slate-800 dark:text-white">{totalLoansCount.toLocaleString()}</span>
-              <span className="text-xs text-slate-500">Total Loans</span>
+              <span className="text-xs text-slate-500">{t('active_loans_count')}</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-4">
             {loanDistribution.map(item => (
               <div key={item.name} className="flex items-center text-sm">
                 <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }}></span>
-                <span className="text-slate-600 dark:text-slate-300">{item.name} ({item.value})</span>
+                <span className="text-slate-600 dark:text-slate-300">
+                  {item.name === 'Active' ? t('active') : item.name === 'Overdue' ? t('overdue') : item.name === 'Completed' ? t('completed') : item.name} ({item.value})
+                </span>
               </div>
             ))}
             {loanDistribution.length === 0 && (
-              <div className="col-span-2 text-center text-sm text-slate-500 mt-2">No loans found</div>
+              <div className="col-span-2 text-center text-sm text-slate-500 mt-2">{t('no_overdue_loans')}</div>
             )}
           </div>
         </motion.div>
@@ -256,12 +267,12 @@ export function Dashboard() {
         {/* Recent Collections */}
         <motion.div variants={itemVariants} className="glass-card p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Recent Collections</h3>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white">{t('recent_collections')}</h3>
             <button 
               onClick={() => navigate('/collections')}
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm font-medium hover:underline cursor-pointer flex items-center gap-1"
             >
-              View All →
+              {t('view_all')} →
             </button>
           </div>
           <div className="space-y-3">
@@ -284,13 +295,13 @@ export function Dashboard() {
                   <div className="font-semibold text-slate-800 dark:text-white">₹{item.amount.toLocaleString()}</div>
                   <div className={`text-xs flex items-center justify-end mt-1 ${item.status === 'Completed' ? 'text-green-500' : 'text-orange-500'}`}>
                     {item.status === 'Completed' ? <CheckCircle2 size={12} className="mr-1" /> : <Clock size={12} className="mr-1" />}
-                    {item.status}
+                    {item.status === 'Completed' ? t('completed') : item.status}
                   </div>
                 </div>
               </div>
             ))}
             {recentCollections.length === 0 && (
-              <div className="text-center text-slate-500 py-4">No recent collections found.</div>
+              <div className="text-center text-slate-500 py-4">{t('no_recent_collections')}</div>
             )}
           </div>
         </motion.div>
@@ -298,7 +309,7 @@ export function Dashboard() {
         {/* Quick Actions / Overdue */}
         <motion.div variants={itemVariants} className="glass-card p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Quick Actions</h3>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white">{t('quick_actions')}</h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
             <button 
@@ -306,34 +317,34 @@ export function Dashboard() {
               className="p-3.5 rounded-xl border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <Users size={22} className="mb-1.5" />
-              <span className="font-medium text-xs sm:text-sm">Add Customer</span>
+              <span className="font-medium text-xs sm:text-sm">{t('add_customer')}</span>
             </button>
             <button 
               onClick={() => navigate('/customers?action=add')}
               className="p-3.5 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <WalletCards size={22} className="mb-1.5" />
-              <span className="font-medium text-xs sm:text-sm">Create Loan</span>
+              <span className="font-medium text-xs sm:text-sm">{t('create_loan')}</span>
             </button>
             <button 
               onClick={() => navigate('/collections')}
               className="p-3.5 rounded-xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-purple-100/60 dark:hover:bg-purple-900/30 flex flex-col items-center justify-center text-purple-600 dark:text-purple-400 transition-all hover:scale-[1.02] cursor-pointer col-span-2 sm:col-span-1"
             >
               <IndianRupee size={22} className="mb-1.5" />
-              <span className="font-medium text-xs sm:text-sm">Record Payment</span>
+              <span className="font-medium text-xs sm:text-sm">{t('record_payment')}</span>
             </button>
           </div>
 
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider">
-              Critical Overdue ({overdueLoans.length})
+              {t('critical_overdue_loans')} ({overdueLoans.length})
             </h3>
             {overdueLoans.length > 0 && (
               <button
                 onClick={() => navigate('/collections')}
                 className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-normal hover:underline cursor-pointer"
               >
-                View in Collections →
+                {t('view_in_collections')} →
               </button>
             )}
           </div>
@@ -352,7 +363,7 @@ export function Dashboard() {
                   </h4>
                   <p className="text-xs text-red-500 mt-0.5">
                     {loan.periodLabel ? `${loan.periodLabel} • ` : ''}
-                    {loan.daysOverdue && loan.daysOverdue !== 'Unknown' ? `Overdue by ${loan.daysOverdue} days` : 'Payment Overdue'}
+                    {loan.daysOverdue && loan.daysOverdue !== 'Unknown' ? `${t('overdue')} (${loan.daysOverdue} days)` : t('overdue')}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -365,16 +376,16 @@ export function Dashboard() {
                       handleRemind(loan);
                     }}
                     className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-red-500/20 cursor-pointer"
-                    title={loan.phone ? `Send WhatsApp reminder to ${loan.phone}` : 'Send reminder'}
+                    title={loan.phone ? `WhatsApp ${loan.phone}` : 'Send reminder'}
                   >
                     <MessageCircle size={13} />
-                    Remind
+                    {t('remind')}
                   </button>
                 </div>
               </div>
             ))}
             {overdueLoans.length === 0 && (
-              <div className="text-center text-slate-500 py-4">No overdue loans found.</div>
+              <div className="text-center text-slate-500 py-4">{t('no_overdue_loans')}</div>
             )}
           </div>
         </motion.div>

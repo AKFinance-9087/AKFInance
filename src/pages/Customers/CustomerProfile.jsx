@@ -26,10 +26,12 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { pdf } from '@react-pdf/renderer';
 import { CustomerStatementPDF } from './CustomerStatementPDF';
+import { useLanguage } from '../../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function CustomerProfile() {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const cn = (...inputs) => twMerge(clsx(inputs));
@@ -324,7 +326,7 @@ export function CustomerProfile() {
           onClick={() => navigate('/customers')}
           className="btn-primary"
         >
-          Back to Customers
+          {t('back_to_customers')}
         </button>
       </div>
     );
@@ -353,7 +355,7 @@ export function CustomerProfile() {
                 customer.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' 
                 : 'bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-400 border-slate-200 dark:border-slate-700'
               )}>
-                {customer.status}
+                {customer.status === 'Active' ? t('active') : customer.status === 'Overdue' ? t('overdue') : customer.status === 'Completed' ? t('completed') : customer.status}
               </span>
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-sm">Customer ID: {customer.id} • Joined {customer.joinedDate}</p>
@@ -368,14 +370,14 @@ export function CustomerProfile() {
             {/* Customer Info Card */}
             <motion.div variants={itemVariants} className="glass-card p-6">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                <User size={18} className="mr-2 text-blue-500" /> Personal Info
+                <User size={18} className="mr-2 text-blue-500" /> {t('profile')}
               </h3>
               <div className="space-y-4">
                 <div className="flex items-start gap-3 text-sm">
                   <Phone size={16} className="text-slate-400 mt-0.5" />
                   <div>
                     <p className="font-medium text-slate-900 dark:text-slate-200">{customer.phone}</p>
-                    <p className="text-xs text-slate-500">Primary</p>
+                    <p className="text-xs text-slate-500">{t('phone_label')}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 text-sm">
@@ -398,23 +400,23 @@ export function CustomerProfile() {
             {customer.loan ? (
               <motion.div variants={itemVariants} className="glass-card p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-600/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-700/30">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                  <FileText size={18} className="mr-2 text-blue-600 dark:text-blue-400" /> Active Loan
+                  <FileText size={18} className="mr-2 text-blue-600 dark:text-blue-400" /> {t('loan_details')}
                 </h3>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Principal Amount</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{t('principal_col')}</span>
                     <span className="font-semibold text-slate-900 dark:text-white flex items-center">
                       <IndianRupee size={14} className="mr-0.5"/> {customer.loan.principalAmount.toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Interest Rate</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{t('interest_rate')}</span>
                     <span className="font-medium text-slate-900 dark:text-white">
                       {customer.loan.interestRate}% ({customer.loan.interestType})
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Remaining Balance</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('remaining_balance_col')}</span>
                     <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 flex items-center">
                       <IndianRupee size={18} className="mr-0.5"/> {customer.loan.remainingPrincipal.toLocaleString('en-IN')}
                     </span>
@@ -434,14 +436,14 @@ export function CustomerProfile() {
             <motion.div variants={itemVariants} className="glass-card p-6 min-h-full">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
-                  <Clock size={18} className="mr-2 text-blue-500" /> Payment History
+                  <Clock size={18} className="mr-2 text-blue-500" /> {t('payment_history')}
                 </h3>
                 <button 
                   onClick={handleExportStatement}
                   disabled={isExporting}
                   className="text-sm flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium disabled:opacity-50"
                 >
-                  <Download size={16} className="mr-1" /> {isExporting ? 'Generating...' : 'Export Statement'}
+                  <Download size={16} className="mr-1" /> {isExporting ? t('loading') : t('export_csv')}
                 </button>
               </div>
 

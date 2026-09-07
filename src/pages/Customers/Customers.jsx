@@ -23,10 +23,12 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useLanguage } from '../../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function Customers() {
+  const { t } = useLanguage();
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -347,8 +349,8 @@ export function Customers() {
         {/* Header & Actions */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Customers Directory</h1>
-            <p className="text-slate-500 dark:text-slate-400">Manage all your borrowers and their details.</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t('customer_directory')}</h1>
+            <p className="text-slate-500 dark:text-slate-400">{t('customer_directory_desc')}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <div className="relative w-full sm:w-64 group">
@@ -360,7 +362,7 @@ export function Customers() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="block w-full p-2 pl-10 text-sm text-slate-900 bg-white border border-slate-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800/50 dark:border-slate-700 dark:placeholder-slate-400 dark:text-white transition-all shadow-sm" 
-                placeholder="Search customers..." 
+                placeholder={t('search_customers')} 
               />
             </div>
             <div className="flex gap-3 w-full sm:w-auto mt-1 sm:mt-0">
@@ -373,7 +375,7 @@ export function Customers() {
                 className="btn-primary flex-1 sm:flex-none flex items-center justify-center whitespace-nowrap"
               >
                 <Plus size={18} className="mr-2" />
-                Add Customer
+                {t('add_customer')}
               </button>
             </div>
           </div>
@@ -391,18 +393,18 @@ export function Customers() {
             <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
               <thead className="text-xs text-slate-700 uppercase bg-slate-50/50 dark:bg-slate-800/50 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">Customer Details</th>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">Contact & Location</th>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">Total Loan Amount</th>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">Remaining Balance</th>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">Status</th>
-                  <th scope="col" className="px-6 py-4 font-medium text-right whitespace-nowrap">Actions</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('customer_col')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('business_location')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('loan_amount')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('remaining_balance_col')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('status')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium text-right whitespace-nowrap">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-slate-500">Loading customers…</td>
+                    <td colSpan="6" className="px-6 py-12 text-center text-slate-500">{t('loading')}</td>
                   </tr>
                 ) : filteredCustomers.map((customer) => (
                   <motion.tr 
@@ -622,7 +624,7 @@ export function Customers() {
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Customer</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('add_new_customer')}</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fields marked with <span className="text-red-500 font-semibold">*</span> are required</p>
                 </div>
                 <button 
@@ -643,7 +645,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Full Name <span className="text-red-500">*</span>
+                    {t('customer_name')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -660,7 +662,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Contact Number <span className="text-red-500">*</span>
+                    {t('phone_number')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -677,7 +679,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Place / Location <span className="text-red-500">*</span>
+                    {t('business_location')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Map className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -708,7 +710,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Initial Loan Amount (₹) <span className="text-red-500">*</span>
+                    {t('loan_amount')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Wallet className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -727,7 +729,7 @@ export function Customers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                      <span>Interest Rate (%)</span>
+                      <span>{t('interest_rate')}</span>
                       <span className="text-xs font-normal text-blue-600 dark:text-blue-400">Default: 10%</span>
                     </label>
                     <div className="relative">
@@ -738,19 +740,19 @@ export function Customers() {
                         value={newCustomer.interestRate}
                         onChange={(e) => setNewCustomer({...newCustomer, interestRate: e.target.value})}
                         className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
-                        placeholder="10 (Default)"
+                        placeholder={t('interest_rate_placeholder')}
                       />
                     </div>
                   </div>
                   
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Period</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('interest_period')}</label>
                     <select 
                       value={newCustomer.interestType}
                       onChange={(e) => setNewCustomer({...newCustomer, interestType: e.target.value})}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
                     >
-                      <option value="Monthly">Monthly</option>
+                      <option value="Monthly">{t('monthly')}</option>
                       <option value="Yearly">Yearly</option>
                     </select>
                   </div>
@@ -761,7 +763,7 @@ export function Customers() {
                   <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/60 dark:border-blue-800/60 rounded-xl flex items-center justify-between text-xs">
                     <div className="space-y-0.5">
                       <p className="font-semibold text-blue-900 dark:text-blue-200">
-                        Calculated Interest ({newCustomer.interestRate !== '' && newCustomer.interestRate !== null && newCustomer.interestRate !== undefined ? `${newCustomer.interestRate}%` : '10% Default'} • {newCustomer.interestType})
+                        {t('calculated_preview')} ({newCustomer.interestRate !== '' && newCustomer.interestRate !== null && newCustomer.interestRate !== undefined ? `${newCustomer.interestRate}%` : '10% Default'} • {newCustomer.interestType})
                       </p>
                       <p className="text-slate-500 dark:text-slate-400 text-[11px]">
                         Initial auto interest charged upon loan creation
@@ -786,16 +788,16 @@ export function Customers() {
                       onChange={(e) => setNewCustomer({...newCustomer, repaymentType: e.target.value})}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
                     >
-                      <option value="Daily">Daily</option>
-                      <option value="Weekly">Weekly</option>
+                      <option value="Daily">{t('daily')}</option>
+                      <option value="Weekly">{t('weekly')}</option>
                       <option value="10 Days">10 Days</option>
-                      <option value="Monthly">Monthly</option>
+                      <option value="Monthly">{t('monthly')}</option>
                     </select>
                   </div>
                   
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Loan Given Date <span className="text-red-500">*</span>
+                      {t('start_date')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required
@@ -813,7 +815,7 @@ export function Customers() {
                     onClick={() => { setIsAddModalOpen(false); setAddModalError(''); }}
                     className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button 
                     type="submit"
@@ -822,10 +824,10 @@ export function Customers() {
                   >
                     {isSaving ? (
                       <>
-                        <RefreshCw size={18} className="animate-spin" /> Saving...
+                        <RefreshCw size={18} className="animate-spin" /> {t('loading')}
                       </>
                     ) : (
-                      'Save Customer'
+                      t('create_customer_button')
                     )}
                   </button>
                 </div>
@@ -855,7 +857,7 @@ export function Customers() {
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Customer</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('edit_customer')}</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fields marked with <span className="text-red-500 font-semibold">*</span> are required</p>
                 </div>
                 <button 
@@ -876,7 +878,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Full Name <span className="text-red-500">*</span>
+                    {t('customer_name')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -893,7 +895,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Contact Number <span className="text-red-500">*</span>
+                    {t('phone_number')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -910,7 +912,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Place / Location <span className="text-red-500">*</span>
+                    {t('business_location')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Map className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -941,7 +943,7 @@ export function Customers() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Initial Loan Amount (₹) <span className="text-red-500">*</span>
+                    {t('loan_amount')} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Wallet className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -957,7 +959,6 @@ export function Customers() {
                   </div>
                 </div>
 
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -969,16 +970,16 @@ export function Customers() {
                       onChange={(e) => setEditingCustomer({...editingCustomer, repaymentType: e.target.value})}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
                     >
-                      <option value="Daily">Daily</option>
-                      <option value="Weekly">Weekly</option>
+                      <option value="Daily">{t('daily')}</option>
+                      <option value="Weekly">{t('weekly')}</option>
                       <option value="10 Days">10 Days</option>
-                      <option value="Monthly">Monthly</option>
+                      <option value="Monthly">{t('monthly')}</option>
                     </select>
                   </div>
                   
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Loan Given Date <span className="text-red-500">*</span>
+                      {t('start_date')} <span className="text-red-500">*</span>
                     </label>
                     <input 
                       required
@@ -996,7 +997,7 @@ export function Customers() {
                     onClick={() => { setIsEditModalOpen(false); setEditModalError(''); }}
                     className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button 
                     type="submit"
@@ -1005,10 +1006,10 @@ export function Customers() {
                   >
                     {isSaving ? (
                       <>
-                        <RefreshCw size={18} className="animate-spin" /> Updating...
+                        <RefreshCw size={18} className="animate-spin" /> {t('loading')}
                       </>
                     ) : (
-                      'Update Details'
+                      t('save_changes')
                     )}
                   </button>
                 </div>

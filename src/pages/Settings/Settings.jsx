@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
-import { 
-  User, 
-  Settings as SettingsIcon, 
-  ShieldCheck, 
-  Globe, 
+import {
+  User,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  Globe,
   Building,
   Mail,
   Phone,
@@ -70,7 +70,7 @@ export function Settings() {
             address: data.address || 'Madurai, Tamil Nadu',
             defaultInterestRate: data.defaultInterestRate !== undefined ? data.defaultInterestRate : 10
           });
-          if (data.language && (data.language === 'en' || data.language === 'ta')) {
+          if (data.language && ['en', 'ta', 'tanglish'].includes(data.language)) {
             setLanguage(data.language);
           }
         }
@@ -132,7 +132,7 @@ export function Settings() {
       });
       setPrefNotification({
         type: 'success',
-        message: 'Language preference saved to database!'
+        message: t('language_saved') || 'Language preference saved to database!'
       });
       setTimeout(() => setPrefNotification(null), 3000);
     } catch (err) {
@@ -195,7 +195,7 @@ export function Settings() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-5xl mx-auto space-y-6"
@@ -206,7 +206,7 @@ export function Settings() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
-        
+
         {/* Sidebar Tabs */}
         <div className="w-full md:w-64 space-y-2">
           {tabs.map(tab => (
@@ -218,11 +218,10 @@ export function Settings() {
                 setPasswordNotification(null);
                 setPrefNotification(null);
               }}
-              className={`w-full flex items-center p-3 rounded-xl transition-all ${
-                activeTab === tab.id 
+              className={`w-full flex items-center p-3 rounded-xl transition-all ${activeTab === tab.id
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-              }`}
+                }`}
             >
               <tab.icon size={20} className="mr-3" />
               <span className="font-medium">{tab.label}</span>
@@ -252,11 +251,10 @@ export function Settings() {
                   </div>
 
                   {profileNotification && (
-                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${
-                      profileNotification.type === 'success'
+                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${profileNotification.type === 'success'
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                         : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                    }`}>
+                      }`}>
                       {profileNotification.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                       <span>{profileNotification.message}</span>
                     </div>
@@ -269,11 +267,11 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Building className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="text" 
-                          value={profileData.businessName} 
+                        <input
+                          type="text"
+                          value={profileData.businessName}
                           onChange={(e) => setProfileData({ ...profileData, businessName: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
@@ -285,11 +283,11 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="text" 
-                          value={profileData.adminName} 
+                        <input
+                          type="text"
+                          value={profileData.adminName}
                           onChange={(e) => setProfileData({ ...profileData, adminName: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
@@ -301,11 +299,11 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="email" 
-                          value={profileData.email} 
+                        <input
+                          type="email"
+                          value={profileData.email}
                           onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
@@ -317,11 +315,11 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="text" 
-                          value={profileData.phone} 
+                        <input
+                          type="text"
+                          value={profileData.phone}
                           onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
@@ -332,11 +330,11 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="text" 
-                          value={profileData.address} 
+                        <input
+                          type="text"
+                          value={profileData.address}
                           onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
@@ -347,20 +345,20 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Percent className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           step="0.1"
-                          value={profileData.defaultInterestRate} 
+                          value={profileData.defaultInterestRate}
                           onChange={(e) => setProfileData({ ...profileData, defaultInterestRate: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-4 flex justify-end">
-                    <button 
-                      type="submit" 
+                    <button
+                      type="submit"
                       disabled={isSaving}
                       className="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2"
                     >
@@ -387,7 +385,7 @@ export function Settings() {
                       <span>{prefNotification.message}</span>
                     </div>
                   )}
-                  
+
                   <div className="space-y-6">
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
                       <div className="flex items-center gap-4">
@@ -399,13 +397,14 @@ export function Settings() {
                           <p className="text-sm text-slate-500">{t('select_language')}</p>
                         </div>
                       </div>
-                      <select 
+                      <select
                         value={language}
                         onChange={(e) => handleLanguageChange(e.target.value)}
                         className="p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="en">English</option>
                         <option value="ta">தமிழ் (Tamil)</option>
+                        <option value="tanglish">Tanglish </option>
                       </select>
                     </div>
                   </div>
@@ -423,11 +422,10 @@ export function Settings() {
                   </div>
 
                   {passwordNotification && (
-                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${
-                      passwordNotification.type === 'success'
+                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${passwordNotification.type === 'success'
                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                         : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                    }`}>
+                      }`}>
                       {passwordNotification.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                       <span>{passwordNotification.message}</span>
                     </div>
@@ -440,12 +438,12 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="password" 
-                          placeholder="••••••••" 
+                        <input
+                          type="password"
+                          placeholder="••••••••"
                           value={passwordData.currentPassword}
                           onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
@@ -456,12 +454,12 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="password" 
-                          placeholder="••••••••" 
+                        <input
+                          type="password"
+                          placeholder="••••••••"
                           value={passwordData.newPassword}
                           onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
@@ -472,19 +470,19 @@ export function Settings() {
                       </label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
-                        <input 
-                          type="password" 
-                          placeholder="••••••••" 
+                        <input
+                          type="password"
+                          placeholder="••••••••"
                           value={passwordData.confirmPassword}
                           onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500" 
+                          className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                           required
                         />
                       </div>
                     </div>
                     <div className="pt-4">
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         disabled={isUpdatingPassword}
                         className="btn-primary py-2.5 px-6 rounded-lg flex items-center gap-2"
                       >

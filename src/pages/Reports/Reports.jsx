@@ -22,10 +22,12 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { pdf } from '@react-pdf/renderer';
 import { MonthlyReportPDF } from './MonthlyReportPDF';
+import { useLanguage } from '../../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function Reports() {
+  const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -109,8 +111,8 @@ export function Reports() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Financial Reports</h1>
-          <p className="text-slate-500 dark:text-slate-400">View your disbursement and collection analytics.</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t('financial_reports')}</h1>
+          <p className="text-slate-500 dark:text-slate-400">{t('financial_reports_desc')}</p>
         </div>
 
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
@@ -123,7 +125,7 @@ export function Reports() {
                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             )}
           >
-            Weekly
+            {t('weekly')}
           </button>
           <button
             onClick={() => setReportType('monthly')}
@@ -134,7 +136,7 @@ export function Reports() {
                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             )}
           >
-            Monthly
+            {t('monthly')}
           </button>
         </div>
       </div>
@@ -144,7 +146,7 @@ export function Reports() {
         <motion.div variants={itemVariants} className="glass-card p-6 border-l-4 border-l-orange-500">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Amount Disbursed</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t('total_principal_disbursed')}</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
                 <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalDisbursed.toLocaleString()}
@@ -156,14 +158,14 @@ export function Reports() {
           </div>
           <p className="text-sm text-slate-500 mt-4 flex items-center">
             <CalendarDays size={14} className="mr-1" />
-            In the current month
+            In the current period
           </p>
         </motion.div>
 
         <motion.div variants={itemVariants} className="glass-card p-6 border-l-4 border-l-emerald-500">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Amount Collected</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t('total_collected')}</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
                 <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalCollected.toLocaleString()}
@@ -175,14 +177,14 @@ export function Reports() {
           </div>
           <p className="text-sm text-slate-500 mt-4 flex items-center">
             <CalendarDays size={14} className="mr-1" />
-            In the current month
+            In the current period
           </p>
         </motion.div>
 
         <motion.div variants={itemVariants} className="glass-card p-6 border-l-4 border-l-blue-500">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Interest Collected</p>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{t('net_profit')}</p>
               <h3 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center">
                 <IndianRupee size={24} className="mr-1 text-slate-400" />
                 {totalInterest.toLocaleString()}
@@ -194,7 +196,7 @@ export function Reports() {
           </div>
           <p className="text-sm text-slate-500 mt-4 flex items-center">
             <CalendarDays size={14} className="mr-1" />
-            In the current month
+            In the current period
           </p>
         </motion.div>
       </div>
@@ -202,13 +204,13 @@ export function Reports() {
       {/* Chart Section */}
       <motion.div variants={itemVariants} className="glass-card p-6">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Disbursed vs Collected</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">{t('monthly_trends')}</h3>
           <button
             onClick={handleDownloadReport}
             disabled={isExporting}
             className="text-sm flex items-center text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
           >
-            <Download size={16} className="mr-1" /> {isExporting ? 'Generating...' : 'Download Report'}
+            <Download size={16} className="mr-1" /> {isExporting ? t('loading') : t('export_csv')}
           </button>
         </div>
 
