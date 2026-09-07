@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
+process.env.TZ = 'Asia/Kolkata';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -27,17 +29,50 @@ function getEffectiveDate(dateValue, fallbackCreatedAt) {
   return d;
 }
 
-// Helper function to parse user-provided loan/payment dates preserving current local time if today
+// Helper function to format date/time in Indian Standard Time (IST)
+function formatIndianDateTime(dateValue, options = {}) {
+  if (!dateValue) return '';
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    ...options
+  });
+}
+
+function formatIndianDate(dateValue) {
+  if (!dateValue) return '';
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+// Helper function to parse user-provided loan/payment dates preserving Indian Standard Time (IST)
 function parseLoanOrPaymentDate(inputDate) {
   if (!inputDate) return new Date();
-  if (typeof inputDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
-    const now = new Date();
-    const [y, m, d] = inputDate.split('-').map(Number);
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (inputDate === todayStr) {
-      return new Date(); // exact current time
+  if (typeof inputDate === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+      const now = new Date();
+      const istToday = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      if (inputDate === istToday) {
+        return new Date(); // exact current time
+      }
+      return new Date(`${inputDate}T12:00:00+05:30`);
     }
-    return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(inputDate)) {
+      return new Date(`${inputDate}+05:30`);
+    }
   }
   return new Date(inputDate);
 }
@@ -305,7 +340,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
       amount: p.amount,
       type: p.paymentType,
       status: p.status,
-      date: getEffectiveDate(p.paymentDate, p.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+      date: formatIndianDateTime(getEffectiveDate(p.paymentDate, p.createdAt), { year: undefined, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
     }));
 
     // Format Overdue Loans
@@ -475,7 +510,7 @@ app.get('/api/reports', async (req, res) => {
         type: t.type,
         customer: t.customer,
         amount: t.amount,
-        date: t.rawDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+        date: formatIndianDateTime(t.rawDate, { year: undefined, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
       }));
 
     res.json({
@@ -890,13 +925,13 @@ app.get('/api/customers/:id', async (req, res) => {
         interestType: loan.interestType,
         interestRate: loan.interestRate,
         remainingPrincipal: loan.remainingPrincipal,
-        startDate: new Date(loan.loanGivenDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
+        startDate: formatIndianDate(loan.loanGivenDate),
         status: loan.status
       };
 
       paymentHistory = loan.payments.map(p => ({
         id: p.id,
-        date: getEffectiveDate(p.paymentDate, p.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }),
+        date: formatIndianDateTime(getEffectiveDate(p.paymentDate, p.createdAt)),
         rawDate: p.paymentDate,
         totalPaid: p.amount,
         interestPart: p.interestPaid,
@@ -917,7 +952,7 @@ app.get('/api/customers/:id', async (req, res) => {
       aadharNumber: customer.aadharNumber || 'Not Provided',
       panNumber: 'Not Provided',
       status: customer.status,
-      joinedDate: new Date(customer.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
+      joinedDate: formatIndianDate(customer.createdAt),
       loan: formattedLoan,
       paymentHistory: paymentHistory
     });

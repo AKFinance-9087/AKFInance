@@ -334,7 +334,7 @@ export function Customers() {
 
   const getLoanDateLabel = (customer) => (
     customer.loanGivenDate
-      ? `Given on ${new Date(customer.loanGivenDate).toLocaleDateString()}`
+      ? `Given on ${new Date(customer.loanGivenDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}`
       : 'No active loan'
   );
 

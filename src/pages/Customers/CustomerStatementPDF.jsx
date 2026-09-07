@@ -96,6 +96,22 @@ const styles = StyleSheet.create({
   }
 });
 
+const formatPDFDate = (payment) => {
+  const raw = payment?.rawDate || payment?.date;
+  if (!raw) return payment?.date || '';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return payment?.date || '';
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 export const CustomerStatementPDF = ({ customer }) => (
   <Document>
     <Page size="A4" style={styles.page}>
@@ -172,7 +188,7 @@ export const CustomerStatementPDF = ({ customer }) => (
           {customer.paymentHistory && customer.paymentHistory.map((payment) => (
             <View style={styles.tableRow} key={payment.id}>
               <View style={{ ...styles.tableCol, width: '25%' }}>
-                <Text style={styles.tableCell}>{payment.date}</Text>
+                <Text style={styles.tableCell}>{formatPDFDate(payment)}</Text>
               </View>
               <View style={styles.tableCol}>
                 <Text style={styles.tableCell}>{payment.mode}</Text>

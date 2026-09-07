@@ -269,7 +269,7 @@ export function Collections() {
 
   const sendWhatsApp = (receipt, language = 'en') => {
     let text = '';
-    const dateStr = new Date(receipt.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateStr = new Date(receipt.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
     
     if (language === 'ta') {
       text = `*கட்டண ரசீது*\n\n`;
@@ -605,7 +605,7 @@ export function Collections() {
                                 ₹{Number(p.amount).toLocaleString()}
                               </p>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {new Date(p.paymentDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
                                 {' · '}{p.paymentType}
                               </p>
                             </div>

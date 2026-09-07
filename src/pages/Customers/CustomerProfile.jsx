@@ -102,7 +102,7 @@ export function CustomerProfile() {
     
     let text = `*Payment Receipt*\n\n`;
     text += `Hello ${customer.name},\n`;
-    text += `We have received your payment of *₹${payment.totalPaid.toLocaleString()}* on ${payment.date}.\n\n`;
+    text += `We have received your payment of *₹${payment.totalPaid.toLocaleString()}* on ${formatPaymentDisplayDate(payment)}.\n\n`;
     text += `*Payment Breakdown:*\n`;
     if (payment.principalPart > 0) text += `- Principal: ₹${payment.principalPart.toLocaleString()}\n`;
     if (payment.interestPart > 0) text += `- Interest: ₹${payment.interestPart.toLocaleString()}\n`;
@@ -121,17 +121,48 @@ export function CustomerProfile() {
     setActiveDropdown(null);
   };
 
-  // Convert raw ISO or date string to YYYY-MM-DDTHH:mm for datetime-local input
+  // Format payment display date in Indian Standard Time (IST)
+  const formatPaymentDisplayDate = (payment) => {
+    const raw = payment?.rawDate || payment?.date;
+    if (!raw) return payment?.date || '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return payment?.date || '';
+    return d.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Convert raw ISO or date string to YYYY-MM-DDTHH:mm for datetime-local input in Indian Standard Time
   const formatForDatetimeLocal = (rawDate) => {
     if (!rawDate) return '';
     const d = new Date(rawDate);
     if (isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(d);
+      const getPart = (type) => parts.find(p => p.type === type)?.value || '00';
+      return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}`;
+    } catch {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
   };
 
   const handleOpenEditModal = (payment, e) => {
@@ -461,7 +492,7 @@ export function CustomerProfile() {
                           <div className="flex-grow">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <Calendar size={14} className="text-slate-400" />
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{payment.date}</span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{formatPaymentDisplayDate(payment)}</span>
                               {payment.mode === 'First Auto Interest' || payment.mode === 'Initial Interest' || (index === customer.paymentHistory.length - 1 && payment.interestPart > 0 && payment.principalPart === 0 && payment.mode === 'Interest Only') ? (
                                 <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800 font-medium px-2 py-0.5 rounded-full ml-1">
                                   First Auto Interest
