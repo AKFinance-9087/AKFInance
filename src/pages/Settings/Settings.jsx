@@ -403,8 +403,8 @@ export function Settings() {
                         className="p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-medium focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="en">English</option>
-                        <option value="ta">தமிழ் (Tamil)</option>
-                        <option value="tanglish">Tanglish </option>
+                        <option value="ta">தமிழ்</option>
+                        <option value="tanglish">Tanglish</option>
                       </select>
                     </div>
                   </div>

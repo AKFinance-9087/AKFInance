@@ -10,7 +10,6 @@ import {
   Clock,
   TrendingDown,
   AlertCircle,
-  ChevronRight,
   RefreshCw,
   History,
   Wallet,
@@ -281,6 +280,15 @@ export function Collections() {
       if (receipt.interestPaid > 0) text += `- வட்டி வரவு: ₹${receipt.interestPaid.toLocaleString()}\n`;
       text += `\n*மீதமுள்ள அசல்:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
       text += `நன்றி!`;
+    } else if (language === 'tanglish') {
+      text = `*Payment Receipt*\n\n`;
+      text += `Vanakkam ${receipt.customerName},\n`;
+      text += `Neenga ${dateStr} anaikku pay panna *₹${receipt.amount.toLocaleString()}* receive aaiduchu.\n\n`;
+      text += `*Payment Breakdown:*\n`;
+      if (receipt.principalPaid > 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.interestPaid > 0) text += `- Interest: ₹${receipt.interestPaid.toLocaleString()}\n`;
+      text += `\n*Balance Principal:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `Nandri!`;
     } else {
       text = `*Payment Receipt*\n\n`;
       text += `Hello ${receipt.customerName},\n`;
@@ -819,17 +827,24 @@ export function Collections() {
                   <div className="flex gap-2">
                     <button 
                       onClick={() => sendWhatsApp(successReceipt, 'en')}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
                     >
-                      <MessageCircle size={18} />
-                      <span className="text-xs">Receipt (English)</span>
+                      <MessageCircle size={16} />
+                      <span className="text-xs">English</span>
                     </button>
                     <button 
                       onClick={() => sendWhatsApp(successReceipt, 'ta')}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
                     >
-                      <MessageCircle size={18} />
-                      <span className="text-xs">ரசீது (Tamil)</span>
+                      <MessageCircle size={16} />
+                      <span className="text-xs">தமிழ்</span>
+                    </button>
+                    <button 
+                      onClick={() => sendWhatsApp(successReceipt, 'tanglish')}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-medium transition-colors"
+                    >
+                      <MessageCircle size={16} />
+                      <span className="text-xs">Tanglish</span>
                     </button>
                   </div>
                   <button 
