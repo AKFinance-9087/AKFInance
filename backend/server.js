@@ -529,7 +529,10 @@ app.post('/api/customers', async (req, res) => {
   try {
     const { name, phone, location, aadharNumber, loanAmount, repaymentType, loanGivenDate, interestRate, interestType } = req.body;
     const parsedLoanAmount = Number(loanAmount) || 0;
-    const parsedInterestRate = Number(interestRate) || 0;
+    const numInterestRate = Number(interestRate);
+    const parsedInterestRate = (interestRate !== undefined && interestRate !== null && String(interestRate).trim() !== '' && !isNaN(numInterestRate))
+      ? numInterestRate
+      : 10;
 
     if (!name?.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
@@ -858,7 +861,10 @@ app.post('/api/loans', async (req, res) => {
   try {
     const { customerId, principalAmount, interestRate, interestType, repaymentType, loanGivenDate } = req.body;
     const parsedPrincipal = Number(principalAmount) || 0;
-    const parsedRate = Number(interestRate) || 0;
+    const numInterestRate = Number(interestRate);
+    const parsedRate = (interestRate !== undefined && interestRate !== null && String(interestRate).trim() !== '' && !isNaN(numInterestRate))
+      ? numInterestRate
+      : 10;
     const loanDate = parseLoanOrPaymentDate(loanGivenDate);
 
     const newLoan = await prisma.loan.create({

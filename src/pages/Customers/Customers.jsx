@@ -112,10 +112,18 @@ export function Customers() {
         }
       }
 
+      const effectiveInterestRate = (newCustomer.interestRate !== undefined && newCustomer.interestRate !== null && String(newCustomer.interestRate).trim() !== '')
+        ? Number(newCustomer.interestRate)
+        : 10;
+
       const response = await fetch(`${API_URL}/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newCustomer, loanGivenDate: submissionDate }),
+        body: JSON.stringify({ 
+          ...newCustomer, 
+          interestRate: effectiveInterestRate,
+          loanGivenDate: submissionDate 
+        }),
       });
       const customer = await response.json();
       if (!response.ok) throw new Error(customer.error || 'Unable to add customer');
@@ -710,7 +718,10 @@ export function Customers() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Rate (%)</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                      <span>Interest Rate (%)</span>
+                      <span className="text-xs font-normal text-blue-600 dark:text-blue-400">Default: 10%</span>
+                    </label>
                     <div className="relative">
                       <BadgePercent className="absolute left-3 top-3 text-slate-400" size={18} />
                       <input 
@@ -719,7 +730,7 @@ export function Customers() {
                         value={newCustomer.interestRate}
                         onChange={(e) => setNewCustomer({...newCustomer, interestRate: e.target.value})}
                         className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
-                        placeholder="e.g. 2.5"
+                        placeholder="10 (Default)"
                       />
                     </div>
                   </div>
@@ -736,6 +747,25 @@ export function Customers() {
                     </select>
                   </div>
                 </div>
+
+                {/* Dynamic Interest Calculation Preview */}
+                {Boolean(newCustomer.loanAmount && Number(newCustomer.loanAmount) > 0) && (
+                  <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/60 dark:border-blue-800/60 rounded-xl flex items-center justify-between text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-blue-900 dark:text-blue-200">
+                        Calculated Interest ({newCustomer.interestRate !== '' && newCustomer.interestRate !== null && newCustomer.interestRate !== undefined ? `${newCustomer.interestRate}%` : '10% Default'} • {newCustomer.interestType})
+                      </p>
+                      <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                        Initial auto interest charged upon loan creation
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-bold text-blue-700 dark:text-blue-300">
+                        ₹{((Number(newCustomer.loanAmount) * (newCustomer.interestRate !== '' && newCustomer.interestRate !== null && newCustomer.interestRate !== undefined ? Number(newCustomer.interestRate) : 10)) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -919,34 +949,6 @@ export function Customers() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Rate (%)</label>
-                    <div className="relative">
-                      <BadgePercent className="absolute left-3 top-3 text-slate-400" size={18} />
-                      <input 
-                        type="number"
-                        step="0.1" 
-                        value={editingCustomer.interestRate !== undefined && editingCustomer.interestRate !== null ? editingCustomer.interestRate : ''}
-                        onChange={(e) => setEditingCustomer({...editingCustomer, interestRate: e.target.value})}
-                        className="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
-                        placeholder="e.g. 2.5"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Interest Period</label>
-                    <select 
-                      value={editingCustomer.interestType || 'Monthly'}
-                      onChange={(e) => setEditingCustomer({...editingCustomer, interestType: e.target.value})}
-                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-white transition-all"
-                    >
-                      <option value="Monthly">Monthly</option>
-                      <option value="Yearly">Yearly</option>
-                    </select>
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">

@@ -79,9 +79,7 @@ export function Collections() {
   // Form state
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [splitInterest, setSplitInterest] = useState('');
-  const [splitPrincipal, setSplitPrincipal] = useState('');
-  const [paymentType, setPaymentType] = useState('Interest + Principal');
+  const [paymentType, setPaymentType] = useState('Interest Only');
   const getLocalDatetime = () => {
     const now = new Date();
     const tzOffset = now.getTimezoneOffset() * 60000;
@@ -184,8 +182,6 @@ export function Collections() {
 
   // ── Auto-Calculation ─────────────────────────────────────────────────────────
   const numPaymentAmount = parseFloat(paymentAmount) || 0;
-  const numSplitInterest = parseFloat(splitInterest) || 0;
-  const numSplitPrincipal = parseFloat(splitPrincipal) || 0;
 
   let calculatedInterest = 0;
   let calculatedPrincipal = 0;
@@ -197,15 +193,11 @@ export function Collections() {
       calculatedInterest = numPaymentAmount;
       calculatedPrincipal = 0;
       totalAmountReceived = numPaymentAmount;
-    } else if (paymentType === 'Principal Only') {
+    } else {
+      // Principal Only
       calculatedInterest = 0;
       calculatedPrincipal = numPaymentAmount;
       totalAmountReceived = numPaymentAmount;
-    } else {
-      // Interest + Principal (Manual Split)
-      calculatedInterest = numSplitInterest;
-      calculatedPrincipal = numSplitPrincipal;
-      totalAmountReceived = numSplitInterest + numSplitPrincipal;
     }
     
     newRemainingPrincipal = selectedLoan.remainingPrincipal - calculatedPrincipal;
@@ -251,8 +243,6 @@ export function Collections() {
       });
       
       setPaymentAmount('');
-      setSplitInterest('');
-      setSplitPrincipal('');
       showToast(`₹${totalAmountReceived.toLocaleString()} payment confirmed for ${selectedLoan.customerName}!`);
     } catch (err) {
       showToast(err.message, 'error');
@@ -479,13 +469,14 @@ export function Collections() {
                       {/* Payment Type */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Type</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {['Interest + Principal', 'Interest Only', 'Principal Only'].map((type) => (
+                        <div className="grid grid-cols-2 gap-2">
+                          {['Interest Only', 'Principal Only'].map((type) => (
                             <button
                               key={type}
+                              type="button"
                               onClick={() => setPaymentType(type)}
                               className={cn(
-                                'py-2 px-1 text-xs font-medium rounded-xl border transition-all text-center',
+                                'py-2.5 px-3 text-xs font-semibold rounded-xl border transition-all text-center flex items-center justify-center gap-1.5',
                                 paymentType === type
                                   ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-600/30 dark:text-blue-400 dark:border-blue-500 shadow-sm'
                                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400'
@@ -499,78 +490,49 @@ export function Collections() {
 
                       {/* Amount */}
                       <div className="space-y-2">
-                        {paymentType === 'Interest + Principal' ? (
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Interest Received (₹)
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={splitInterest}
-                                  onChange={(e) => setSplitInterest(e.target.value)}
-                                  placeholder="Interest"
-                                  className="w-full p-3 pl-10 text-xl font-bold text-slate-900 bg-orange-50/50 border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:bg-orange-900/10 dark:border-orange-900/30 dark:text-white transition-all"
-                                />
-                                <IndianRupee className="absolute left-3 top-3.5 text-orange-400" size={18} />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Principal Received (₹)
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={splitPrincipal}
-                                  onChange={(e) => setSplitPrincipal(e.target.value)}
-                                  placeholder="Principal"
-                                  className="w-full p-3 pl-10 text-xl font-bold text-slate-900 bg-emerald-50/50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-emerald-900/10 dark:border-emerald-900/30 dark:text-white transition-all"
-                                />
-                                <IndianRupee className="absolute left-3 top-3.5 text-emerald-400" size={18} />
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Amount Received (₹)
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="number"
-                                min="0"
-                                value={paymentAmount}
-                                onChange={(e) => setPaymentAmount(e.target.value)}
-                                placeholder="Enter amount"
-                                className="w-full p-3 pl-10 text-2xl font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white transition-all"
-                              />
-                              <IndianRupee className="absolute left-3 top-4 text-slate-400" size={20} />
-                            </div>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          {paymentType === 'Interest Only' ? 'Interest Amount Received (₹)' : 'Principal Amount Received (₹)'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            placeholder={paymentType === 'Interest Only' ? 'Enter interest amount' : 'Enter principal amount'}
+                            className="w-full p-3 pl-10 text-2xl font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white transition-all"
+                          />
+                          <IndianRupee className="absolute left-3 top-4 text-slate-400" size={20} />
+                        </div>
 
-                            {/* Quick-fill buttons */}
-                            {selectedLoan.interestDue > 0 && (
-                              <div className="flex flex-col sm:flex-row gap-2 flex-wrap mt-2">
-                                <span className="text-xs text-slate-400 self-center">Quick fill:</span>
-                                <button
-                                  onClick={() => setPaymentAmount(String(selectedLoan.interestDue))}
-                                  className="text-xs px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-900/30 hover:bg-orange-100 transition-colors"
-                                >
-                                  Interest only ₹{selectedLoan.interestDue.toLocaleString()}
-                                </button>
-                                <button
-                                  onClick={() => setPaymentAmount(String(selectedLoan.remainingPrincipal))}
-                                  className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 transition-colors"
-                                >
-                                  Full principal ₹{selectedLoan.remainingPrincipal.toLocaleString()}
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
+                        {/* Quick-fill buttons */}
+                        <div className="flex flex-col sm:flex-row gap-2 flex-wrap mt-2">
+                          <span className="text-xs text-slate-400 self-center">Quick fill:</span>
+                          {selectedLoan.interestDue > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentType('Interest Only');
+                                setPaymentAmount(String(selectedLoan.interestDue));
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-900/30 hover:bg-orange-100 transition-colors"
+                            >
+                              Interest only ₹{selectedLoan.interestDue.toLocaleString()}
+                            </button>
+                          )}
+                          {selectedLoan.remainingPrincipal > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentType('Principal Only');
+                                setPaymentAmount(String(selectedLoan.remainingPrincipal));
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 transition-colors"
+                            >
+                              Full principal ₹{selectedLoan.remainingPrincipal.toLocaleString()}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2">
