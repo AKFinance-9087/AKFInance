@@ -1132,6 +1132,157 @@ app.delete('/api/payments/:id', async (req, res) => {
   }
 });
 
+// --- SETTINGS & AUTH API ---
+const ensureSettingsTable = async () => {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SystemSetting" (
+        "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'default',
+        "businessName" TEXT NOT NULL DEFAULT 'AK Finance',
+        "adminName" TEXT NOT NULL DEFAULT 'Admin User',
+        "email" TEXT NOT NULL DEFAULT 'admin@akfinance.com',
+        "phone" TEXT NOT NULL DEFAULT '+91 9876543210',
+        "address" TEXT NOT NULL DEFAULT 'Madurai, Tamil Nadu',
+        "defaultInterestRate" DOUBLE PRECISION NOT NULL DEFAULT 10,
+        "language" TEXT NOT NULL DEFAULT 'en',
+        "adminPassword" TEXT NOT NULL DEFAULT 'admin2026',
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "SystemSetting" ("id", "businessName", "adminName", "email", "phone", "address", "defaultInterestRate", "language", "adminPassword")
+      VALUES ('default', 'AK Finance', 'Admin User', 'admin@akfinance.com', '+91 9876543210', 'Madurai, Tamil Nadu', 10, 'en', 'admin2026')
+      ON CONFLICT ("id") DO NOTHING;
+    `);
+  } catch (err) {
+    console.error('Error ensuring SystemSetting table:', err);
+  }
+};
+
+ensureSettingsTable();
+
+app.get('/api/settings', async (req, res) => {
+  try {
+    await ensureSettingsTable();
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT "id", "businessName", "adminName", "email", "phone", "address", "defaultInterestRate", "language", "updatedAt"
+      FROM "SystemSetting"
+      WHERE "id" = 'default'
+      LIMIT 1
+    `);
+    if (!rows || rows.length === 0) {
+      return res.json({
+        businessName: 'AK Finance',
+        adminName: 'Admin User',
+        email: 'admin@akfinance.com',
+        phone: '+91 9876543210',
+        address: 'Madurai, Tamil Nadu',
+        defaultInterestRate: 10,
+        language: 'en'
+      });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Failed to get settings:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+app.put('/api/settings', async (req, res) => {
+  try {
+    await ensureSettingsTable();
+    const { businessName, adminName, email, phone, address, defaultInterestRate, language } = req.body;
+    
+    await prisma.$executeRawUnsafe(`
+      UPDATE "SystemSetting"
+      SET 
+        "businessName" = COALESCE($1, "businessName"),
+        "adminName" = COALESCE($2, "adminName"),
+        "email" = COALESCE($3, "email"),
+        "phone" = COALESCE($4, "phone"),
+        "address" = COALESCE($5, "address"),
+        "defaultInterestRate" = COALESCE($6, "defaultInterestRate"),
+        "language" = COALESCE($7, "language"),
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = 'default'
+    `, 
+      businessName ?? null, 
+      adminName ?? null, 
+      email ?? null, 
+      phone ?? null, 
+      address ?? null, 
+      defaultInterestRate !== undefined ? Number(defaultInterestRate) : null, 
+      language ?? null
+    );
+
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT "id", "businessName", "adminName", "email", "phone", "address", "defaultInterestRate", "language", "updatedAt"
+      FROM "SystemSetting"
+      WHERE "id" = 'default'
+      LIMIT 1
+    `);
+    res.json({ message: 'Settings updated successfully', settings: rows[0] });
+  } catch (error) {
+    console.error('Failed to update settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+app.put('/api/settings/password', async (req, res) => {
+  try {
+    await ensureSettingsTable();
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    const rows = await prisma.$queryRawUnsafe(`SELECT "adminPassword" FROM "SystemSetting" WHERE "id" = 'default' LIMIT 1`);
+    const savedPassword = rows[0]?.adminPassword || 'admin2026';
+
+    if (currentPassword !== savedPassword) {
+      return res.status(400).json({ error: 'Current password does not match.' });
+    }
+
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters.' });
+    }
+
+    await prisma.$executeRawUnsafe(`
+      UPDATE "SystemSetting"
+      SET "adminPassword" = $1, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = 'default'
+    `, newPassword);
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Failed to update password:', error);
+    res.status(500).json({ error: 'Failed to update password' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    await ensureSettingsTable();
+    const { username, password } = req.body;
+
+    const rows = await prisma.$queryRawUnsafe(`SELECT "adminName", "email", "adminPassword" FROM "SystemSetting" WHERE "id" = 'default' LIMIT 1`);
+    const setting = rows[0] || { adminName: 'Admin User', email: 'admin@akfinance.com', adminPassword: 'admin2026' };
+
+    const isValidUser = (username === 'admin' || username === setting.email || username === setting.adminName);
+    const isValidPass = (password === setting.adminPassword);
+
+    if (isValidUser && isValidPass) {
+      return res.json({ success: true, username: setting.adminName || 'Admin' });
+    }
+
+    res.status(401).json({ error: 'Invalid username or password' });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
 // Serve frontend static build and handle SPA fallback for non-API routes (if dist folder exists)
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {

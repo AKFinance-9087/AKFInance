@@ -4,27 +4,51 @@ import { motion } from 'framer-motion';
 import { Lock, User, ArrowRight } from 'lucide-react';
 import logoImg from '../../assets/logo.png';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    // Temporary local credentials until backend authentication is connected.
-    if (username === 'admin' && password === 'admin2026') {
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('username', 'admin');
-      // Trigger a custom event so App.jsx or others can detect login immediately
-      window.dispatchEvent(new Event('authChange'));
-      navigate('/');
-      return;
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('username', data.username || username);
+        window.dispatchEvent(new Event('authChange'));
+        navigate('/');
+        return;
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Invalid username or password.');
+      }
+    } catch (_err) {
+      // Fallback in case backend server is unreachable
+      if (username === 'admin' && password === 'admin2026') {
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('username', 'admin');
+        window.dispatchEvent(new Event('authChange'));
+        navigate('/');
+        return;
+      }
+      setError('Unable to connect to authentication server.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setError('Invalid username or password.');
   };
 
   return (
@@ -115,10 +139,11 @@ export function Login() {
 
             <button 
               type="submit"
-              className="w-full btn-primary py-4 text-lg font-semibold rounded-xl flex items-center justify-center gap-2 group hover:shadow-lg hover:shadow-blue-500/30 transition-all"
+              disabled={isLoading}
+              className="w-full btn-primary py-4 text-lg font-semibold rounded-xl flex items-center justify-center gap-2 group hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-60"
             >
-              Sign In
-              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {isLoading ? 'Signing In...' : 'Sign In'}
+              {!isLoading && <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />}
             </button>
           </form>
           
