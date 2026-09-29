@@ -55,13 +55,17 @@ export function Dashboard() {
     let cleanPhone = (loan.phone || '').replace(/\D/g, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
 
+    const dueStr = loan.nextDueDate 
+      ? new Date(loan.nextDueDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })
+      : null;
+
     let reminderText = '';
     if (language === 'tanglish') {
-      reminderText = `Vanakkam ${loan.name},\nAK Finance-la irundhu ungal kadan thavanai thogai ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}) baaki irukkiradhu. Dayavuseithu seekkiram kattavum.\n\nNandri!`;
+      reminderText = `Vanakkam ${loan.name},\nAK Finance-la ungal kadan thavanai thogai ₹${Number(loan.amount).toLocaleString('en-IN')} pending-la irukkiradhu (${loan.periodLabel || 'Overdue'})${dueStr ? `\n- Missed Due Date: ${dueStr}` : ''}.\nDayavuseithu seekkiram kattavum.\n\nNandri!`;
     } else if (language === 'ta') {
-      reminderText = `வணக்கம் ${loan.name},\nதாங்கள் பெற்ற கடன் தவணைத் தொகை ₹${Number(loan.amount).toLocaleString('en-IN')} நிலுவையில் உள்ளது (${loan.periodLabel || 'Overdue'}). தயவுசெய்து விரைவில் செலுத்தவும்.\n\nநன்றி!`;
+      reminderText = `வணக்கம் ${loan.name},\nAK Finance-ல் தாங்கள் பெற்ற கடன் தவணைத் தொகை ₹${Number(loan.amount).toLocaleString('en-IN')} நிலுவையில் உள்ளது (${loan.periodLabel || 'Overdue'})${dueStr ? `\n- தவணை தேதி: ${dueStr}` : ''}.\nதயவுசெய்து நிலுவையை விரைவில் செலுத்தவும்.\n\nநன்றி!`;
     } else {
-      reminderText = `Dear ${loan.name},\nThis is a gentle reminder from AK Finance regarding your pending loan repayment of ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'}). Kindly clear the dues at your earliest convenience.\n\nThank you!`;
+      reminderText = `Dear ${loan.name},\nThis is a gentle reminder from AK Finance regarding your pending loan repayment of ₹${Number(loan.amount).toLocaleString('en-IN')} (${loan.periodLabel || 'Overdue'})${dueStr ? `\n- Missed Due Date: ${dueStr}` : ''}.\nKindly clear the dues at your earliest convenience.\n\nThank you!`;
     }
 
     const message = encodeURIComponent(reminderText);

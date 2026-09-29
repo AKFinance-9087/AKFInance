@@ -158,6 +158,20 @@ export const CustomerStatementPDF = ({ customer }) => (
             <Text style={styles.value}>{customer.loan.interestRate}% ({customer.loan.interestType})</Text>
           </View>
           <View style={styles.row}>
+            <Text style={styles.label}>Schedule</Text>
+            <Text style={styles.value}>{customer.loan.repaymentType || 'Monthly'}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Next Arrival Date</Text>
+            <Text style={styles.value}>{customer.loan.nextDueDate || 'N/A'}</Text>
+          </View>
+          {Number(customer.loan.holdAmount) > 0 && (
+            <View style={styles.row}>
+              <Text style={styles.label}>Hold Area Balance</Text>
+              <Text style={styles.value}>Rs. {Number(customer.loan.holdAmount)?.toLocaleString()}</Text>
+            </View>
+          )}
+          <View style={styles.row}>
             <Text style={styles.label}>Remaining Balance</Text>
             <Text style={styles.value}>Rs. {customer.loan.remainingPrincipal?.toLocaleString()}</Text>
           </View>

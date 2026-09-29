@@ -20,7 +20,8 @@ import {
   X,
   RefreshCw,
   Calculator,
-  AlertCircle
+  AlertCircle,
+  Wallet
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,7 +32,7 @@ import { useLanguage } from '../../context/LanguageContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function CustomerProfile() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const cn = (...inputs) => twMerge(clsx(inputs));
@@ -97,26 +98,58 @@ export function CustomerProfile() {
     }
   };
 
-  const handleWhatsAppShare = (payment) => {
+  const handleWhatsAppShare = (payment, targetLang) => {
     if (!customer || !customer.loan) return;
+    const lang = targetLang || language || 'en';
+    const dateStr = formatPaymentDisplayDate(payment);
+    const holdAmt = Number(customer.loan.holdAmount) || 0;
+    const nextDue = (customer.loan.nextDueDate && customer.loan.nextDueDate !== 'N/A') ? customer.loan.nextDueDate : null;
     
-    let text = `*Payment Receipt*\n\n`;
-    text += `Hello ${customer.name},\n`;
-    text += `We have received your payment of *₹${payment.totalPaid.toLocaleString()}* on ${formatPaymentDisplayDate(payment)}.\n\n`;
-    text += `*Payment Breakdown:*\n`;
-    if (payment.principalPart > 0) text += `- Principal: ₹${payment.principalPart.toLocaleString()}\n`;
-    if (payment.interestPart > 0) text += `- Interest: ₹${payment.interestPart.toLocaleString()}\n`;
-    text += `\n*Remaining Balance:* ₹${customer.loan.remainingPrincipal.toLocaleString()}\n\n`;
-    text += `Thank you!`;
+    let text = '';
+    if (lang === 'ta') {
+      text = `*கட்டண ரசீது*\n\n`;
+      text += `வணக்கம் ${customer.name},\n`;
+      text += `தாங்கள் ${dateStr} அன்று செலுத்திய *₹${payment.totalPaid.toLocaleString()}* தொகை வரவு வைக்கப்பட்டது.\n\n`;
+      text += `*கட்டண விவரம்:*\n`;
+      if (payment.principalPart > 0) text += `- அசல்: ₹${payment.principalPart.toLocaleString()}\n`;
+      if (payment.interestPart > 0) text += `- வட்டி: ₹${payment.interestPart.toLocaleString()}\n`;
+      if (payment.mode) text += `- தவணை முறை: ${payment.mode}\n`;
+      if (holdAmt > 0) text += `- ஹோல்ட் இருப்பு: ₹${holdAmt.toLocaleString()}\n`;
+      if (nextDue) text += `- அடுத்த தவணை நாள்: ${nextDue}\n`;
+      text += `\n*மீதமுள்ள அசல்:* ₹${customer.loan.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `நன்றி!`;
+    } else if (lang === 'tanglish') {
+      text = `*Payment Receipt*\n\n`;
+      text += `Vanakkam ${customer.name},\n`;
+      text += `Neenga ${dateStr} anaikku pay panna *₹${payment.totalPaid.toLocaleString()}* receive aaiduchu.\n\n`;
+      text += `*Payment Breakdown:*\n`;
+      if (payment.principalPart > 0) text += `- Principal: ₹${payment.principalPart.toLocaleString()}\n`;
+      if (payment.interestPart > 0) text += `- Interest: ₹${payment.interestPart.toLocaleString()}\n`;
+      if (payment.mode) text += `- Mode: ${payment.mode}\n`;
+      if (holdAmt > 0) text += `- Hold Area Balance: ₹${holdAmt.toLocaleString()}\n`;
+      if (nextDue) text += `- Next Arrival Date: ${nextDue}\n`;
+      text += `\n*Balance Principal:* ₹${customer.loan.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `Nandri!`;
+    } else {
+      text = `*Payment Receipt*\n\n`;
+      text += `Hello ${customer.name},\n`;
+      text += `We have received your payment of *₹${payment.totalPaid.toLocaleString()}* on ${dateStr}.\n\n`;
+      text += `*Payment Breakdown:*\n`;
+      if (payment.principalPart > 0) text += `- Principal: ₹${payment.principalPart.toLocaleString()}\n`;
+      if (payment.interestPart > 0) text += `- Interest: ₹${payment.interestPart.toLocaleString()}\n`;
+      if (payment.mode) text += `- Type: ${payment.mode}\n`;
+      if (holdAmt > 0) text += `- Hold Balance Pool: ₹${holdAmt.toLocaleString()}\n`;
+      if (nextDue) text += `- Next Arrival Date: ${nextDue}\n`;
+      text += `\n*Remaining Balance:* ₹${customer.loan.remainingPrincipal.toLocaleString()}\n\n`;
+      text += `Thank you!`;
+    }
 
     const encodedText = encodeURIComponent(text);
-    
     let phone = customer.phone || '';
     phone = phone.replace(/\D/g,'');
     if (phone.length === 10) phone = '91' + phone;
 
     const url = phone ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
-    
     window.open(url, '_blank');
     setActiveDropdown(null);
   };
@@ -162,6 +195,65 @@ export function CustomerProfile() {
       const hours = String(d.getHours()).padStart(2, '0');
       const minutes = String(d.getMinutes()).padStart(2, '0');
       return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+  };
+
+  // Helper to calculate dynamic cycle status (Missed, Advance, On Track, Due Today)
+  const getCycleStatus = (loan) => {
+    if (!loan) return null;
+    const rawDue = loan.rawNextDueDate || loan.nextDueDate;
+    if (!rawDue || rawDue === 'N/A') return null;
+    const dueDate = new Date(rawDue);
+    if (isNaN(dueDate.getTime())) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(dueDate);
+    target.setHours(0, 0, 0, 0);
+
+    const diffMs = today.getTime() - target.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    let periodLabel = 'Week';
+    let periodDays = 7;
+    if (loan.repaymentType === 'Daily') { periodLabel = 'Day'; periodDays = 1; }
+    else if (loan.repaymentType === '10 Days') { periodLabel = '10-Day'; periodDays = 10; }
+    else if (loan.repaymentType === 'Monthly') { periodLabel = 'Month'; periodDays = 30; }
+
+    const dateStr = target.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    if (diffDays > 0) {
+      const periods = Math.max(1, Math.floor(diffDays / periodDays));
+      return {
+        isOverdue: true,
+        dateStr,
+        label: `${periods} ${periodLabel}${periods > 1 ? 's' : ''} Missed`,
+        badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800'
+      };
+    } else if (diffDays < 0) {
+      const advanceDays = Math.abs(diffDays);
+      const periods = Math.floor(advanceDays / periodDays);
+      const isAdvance = periods >= 1;
+      return {
+        isAdvance,
+        dateStr,
+        label: isAdvance ? `${periods} ${periodLabel}${periods > 1 ? 's' : ''} Advance` : 'On Track',
+        badgeColor: isAdvance
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+      };
+    } else {
+      return {
+        isDueToday: true,
+        dateStr,
+        label: 'Due Today',
+        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+      };
     }
   };
 
@@ -380,7 +472,7 @@ export function CustomerProfile() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{customer.name}</h1>
               <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium border", 
                 customer.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' 
@@ -388,6 +480,21 @@ export function CustomerProfile() {
               )}>
                 {customer.status === 'Active' ? t('active') : customer.status === 'Overdue' ? t('overdue') : customer.status === 'Completed' ? t('completed') : customer.status}
               </span>
+              {customer.loan && (() => {
+                const cycle = getCycleStatus(customer.loan);
+                if (!cycle) return null;
+                return (
+                  <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1", cycle.badgeColor)}>
+                    <Calendar size={12} />
+                    {cycle.label}
+                  </span>
+                );
+              })()}
+              {customer.loan && Number(customer.loan.holdAmount) > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                  <Wallet size={12} /> ₹{Number(customer.loan.holdAmount).toLocaleString('en-IN')} Hold
+                </span>
+              )}
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-sm">Customer ID: {customer.id} • Joined {customer.joinedDate}</p>
           </div>
@@ -446,6 +553,44 @@ export function CustomerProfile() {
                       {customer.loan.interestRate}% ({customer.loan.interestType})
                     </span>
                   </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Schedule</span>
+                    <span className="font-medium text-slate-900 dark:text-white">
+                      {customer.loan.repaymentType || 'Monthly'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Next Arrival Date</span>
+                    {(() => {
+                      const cycle = getCycleStatus(customer.loan);
+                      return (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1">
+                            <Calendar size={13} className={cycle?.isOverdue ? "text-red-500" : cycle?.isAdvance ? "text-emerald-500" : cycle?.isDueToday ? "text-amber-500" : "text-blue-500"} />
+                            <span className={cycle?.isOverdue ? "text-red-600 dark:text-red-400 font-bold" : cycle?.isDueToday ? "text-amber-600 dark:text-amber-400 font-bold" : ""}>
+                              {cycle?.dateStr || customer.loan.nextDueDate || 'N/A'}
+                            </span>
+                          </span>
+                          {cycle && (
+                            <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium border", cycle.badgeColor)}>
+                              {cycle.label}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {Number(customer.loan.holdAmount) > 0 && (
+                    <div className="flex justify-between items-center pb-2 border-b border-blue-200/50 dark:border-blue-700/50">
+                      <div>
+                        <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">Hold Area Balance</span>
+                        <p className="text-[11px] text-purple-600/80 dark:text-purple-400/80">Pending tally for next cycle</p>
+                      </div>
+                      <span className="font-bold text-purple-700 dark:text-purple-300 flex items-center bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <IndianRupee size={14} className="mr-0.5"/> {Number(customer.loan.holdAmount).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('remaining_balance_col')}</span>
                     <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 flex items-center">
@@ -480,31 +625,72 @@ export function CustomerProfile() {
 
               {customer.paymentHistory && customer.paymentHistory.length > 0 ? (
                 <div className="relative border-l-2 border-slate-200 dark:border-slate-700 ml-3 md:ml-4 space-y-8 pb-4">
-                  {customer.paymentHistory.map((payment, index) => (
-                    <div key={payment.id} className="relative pl-6 md:pl-8">
-                      {/* Timeline dot */}
-                      <div className="absolute w-4 h-4 bg-emerald-500 rounded-full -left-[9px] top-1 border-2 border-white dark:border-slate-800 shadow-sm"></div>
-                      
-                      <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
-                          
-                          {/* Date & basic info */}
-                          <div className="flex-grow">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <Calendar size={14} className="text-slate-400" />
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{formatPaymentDisplayDate(payment)}</span>
-                              {payment.mode === 'First Auto Interest' || payment.mode === 'Initial Interest' || (index === customer.paymentHistory.length - 1 && payment.interestPart > 0 && payment.principalPart === 0 && payment.mode === 'Interest Only') ? (
-                                <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800 font-medium px-2 py-0.5 rounded-full ml-1">
-                                  First Auto Interest
-                                </span>
-                              ) : (
-                                <span className="text-xs bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-2 py-0.5 rounded ml-1">
-                                  {payment.mode}
-                                </span>
+                  {customer.paymentHistory.map((payment, index) => {
+                    const isFirstAuto = payment.mode === 'First Auto Interest' || payment.mode === 'Initial Interest' || (index === customer.paymentHistory.length - 1 && payment.interestPart > 0 && payment.principalPart === 0 && payment.mode === 'Interest Only');
+                    const isHoldDeposit = payment.mode === 'Hold Balance Deposit';
+                    const isCycleSplit = payment.mode && payment.mode.startsWith('Interest (');
+                    const isPrincipalOnly = payment.mode === 'Principal Only';
+
+                    let dotColor = 'bg-blue-500';
+                    if (isHoldDeposit) dotColor = 'bg-purple-500';
+                    else if (isCycleSplit) dotColor = 'bg-emerald-500';
+                    else if (isFirstAuto) dotColor = 'bg-indigo-500';
+                    else if (isPrincipalOnly) dotColor = 'bg-teal-500';
+
+                    return (
+                      <div key={payment.id} className="relative pl-6 md:pl-8">
+                        {/* Timeline dot */}
+                        <div className={cn("absolute w-4 h-4 rounded-full -left-[9px] top-1 border-2 border-white dark:border-slate-800 shadow-sm", dotColor)}></div>
+                        
+                        <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                            
+                            {/* Date & basic info */}
+                            <div className="flex-grow">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Calendar size={14} className="text-slate-400" />
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">{formatPaymentDisplayDate(payment)}</span>
+                                
+                                {isFirstAuto ? (
+                                  <span className="text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-medium px-2 py-0.5 rounded-full ml-1">
+                                    First Auto Interest
+                                  </span>
+                                ) : isHoldDeposit ? (
+                                  <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800 font-semibold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1">
+                                    <Wallet size={12} /> Hold Area Deposit
+                                  </span>
+                                ) : isCycleSplit ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-semibold px-2 py-0.5 rounded-full ml-1">
+                                      {payment.mode}
+                                    </span>
+                                    <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40 px-1.5 py-0.5 rounded-full">
+                                      10% Split
+                                    </span>
+                                  </div>
+                                ) : isPrincipalOnly ? (
+                                  <span className="text-xs bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800 font-medium px-2 py-0.5 rounded ml-1">
+                                    Principal Only
+                                  </span>
+                                ) : (
+                                  <span className="text-xs bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-2 py-0.5 rounded ml-1">
+                                    {payment.mode}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {isHoldDeposit && (
+                                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-0.5">
+                                  Saved to hold balance pool — will tally toward the next 10% cycle installment.
+                                </p>
                               )}
+                              {isCycleSplit && (
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                                  10% cycle installment logged as part of split schedule.
+                                </p>
+                              )}
+                              <p className="text-xs text-slate-500 mt-0.5">Receipt No: {payment.id}</p>
                             </div>
-                            <p className="text-xs text-slate-500">Receipt No: {payment.id}</p>
-                          </div>
 
                           {/* Payment Split Data */}
                           <div className="flex gap-4 md:gap-8 items-center bg-white dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50">
@@ -584,7 +770,8 @@ export function CustomerProfile() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               ) : (
                 <div className="text-center text-slate-500 py-12">

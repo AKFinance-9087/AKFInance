@@ -120,6 +120,8 @@ export function Collections() {
         interestRate: Number(loan.interestRate) || 0,
         remainingPrincipal: loan.remainingPrincipal,
         interestDue: Number(loan.interestDue) || 0,
+        holdAmount: Number(loan.holdAmount) || 0,
+        nextDueDate: loan.nextDueDate,
         repaymentType: loan.repaymentType,
         loanGivenDate: loan.loanGivenDate,
         status: loan.status,
@@ -141,68 +143,88 @@ export function Collections() {
 
   const selectedLoan = loans.find((loan) => loan.id === selectedLoanId) || null;
 
-  // ── Pending Payment Calculation ─────────────────────────────────────────────
+  // ── Helper to advance periods ───────────────────────────────────────────────
+  const addPeriods = (baseDate, count, repaymentType) => {
+    if (!baseDate) return new Date();
+    const d = new Date(baseDate);
+    const n = Number(count) || 0;
+    if (repaymentType === 'Weekly') d.setDate(d.getDate() + (n * 7));
+    else if (repaymentType === '10 Days') d.setDate(d.getDate() + (n * 10));
+    else if (repaymentType === 'Daily') d.setDate(d.getDate() + n);
+    else d.setMonth(d.getMonth() + n);
+    return d;
+  };
+
+  // ── Pending Payment Calculation based on nextDueDate ─────────────────────────
   const calculatePending = (loan) => {
     if (!loan?.loanGivenDate) return { count: 0, label: loan?.status || 'Active', isPending: false };
     if (loan.status === 'Completed' || loan.status === 'Closed') return { count: 0, label: loan.status, isPending: false };
 
-    const givenDate = new Date(loan.loanGivenDate);
+    let periodLabel = 'Month(s)';
+    let periodDays = 30;
+    if (loan.repaymentType === 'Daily') { periodLabel = 'Day(s)'; periodDays = 1; }
+    else if (loan.repaymentType === 'Weekly') { periodLabel = 'Week(s)'; periodDays = 7; }
+    else if (loan.repaymentType === '10 Days') { periodLabel = 'Period(s)'; periodDays = 10; }
+
+    const dueDate = loan.nextDueDate ? new Date(loan.nextDueDate) : addPeriods(loan.loanGivenDate, 1, loan.repaymentType);
     const now = new Date();
-    
-    const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
+    const dueDateMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
     const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
-    const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-    let periodsElapsed = 0;
-    let periodLabel = '';
-    
-    if (loan.repaymentType === 'Daily') { periodsElapsed = diffDays; periodLabel = 'Day(s)'; }
-    else if (loan.repaymentType === 'Weekly') { periodsElapsed = Math.floor(diffDays / 7); periodLabel = 'Week(s)'; }
-    else if (loan.repaymentType === '10 Days') { periodsElapsed = Math.floor(diffDays / 10); periodLabel = 'Period(s)'; }
-    else if (loan.repaymentType === 'Monthly') { 
-        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
-        months -= givenDateMidnight.getMonth();
-        months += nowMidnight.getMonth();
-        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
-            months--;
-        }
-        periodsElapsed = Math.max(0, months);
-        periodLabel = 'Month(s)'; 
+    const diffTime = nowMidnight.getTime() - dueDateMidnight.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+      const pendingCount = Math.max(1, Math.floor(diffDays / periodDays));
+      return { count: pendingCount, label: `${pendingCount} ${periodLabel} Pending`, isPending: true, nextDueDate: dueDate };
+    } else if (diffDays < 0) {
+      const advanceDays = Math.abs(diffDays);
+      const advanceCount = Math.max(1, Math.floor(advanceDays / periodDays));
+      return { count: advanceCount, label: `${advanceCount} ${periodLabel} Advance`, isPending: false, isAdvance: true, nextDueDate: dueDate };
     }
-
-    const actualPayments = loan.payments?.length || 0;
-    const hasInitial = actualPayments > 0;
-    const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
-    const pendingCount = expectedPayments - actualPayments;
-
-    if (pendingCount > 0) return { count: pendingCount, label: `${pendingCount} ${periodLabel} Pending`, isPending: true };
-    if (pendingCount < 0) return { count: pendingCount, label: `${Math.abs(pendingCount)} ${periodLabel} Advance`, isPending: false };
-    return { count: 0, label: 'Up to date', isPending: false };
+    return { count: 0, label: 'Due Today', isPending: true, nextDueDate: dueDate };
   };
 
-  // ── Auto-Calculation ─────────────────────────────────────────────────────────
+  // ── 10% Rule & Hold Area Auto-Calculation ────────────────────────────────────
   const numPaymentAmount = parseFloat(paymentAmount) || 0;
+  const periodicInterest = selectedLoan ? Math.round((selectedLoan.remainingPrincipal * (selectedLoan.interestRate || 10)) / 100) : 0;
+  const installmentUnit = selectedLoan ? (Math.round((selectedLoan.principalAmount * (selectedLoan.interestRate || 10)) / 100) || 500) : 500;
+  const existingHold = selectedLoan ? (Number(selectedLoan.holdAmount) || 0) : 0;
 
   let calculatedInterest = 0;
   let calculatedPrincipal = 0;
   let newRemainingPrincipal = selectedLoan?.remainingPrincipal || 0;
-  let totalAmountReceived = 0;
+  let totalAmountReceived = numPaymentAmount;
+  let cyclesCovered = 0;
+  let newHoldAmount = existingHold;
+
+  const currentDueDate = selectedLoan?.nextDueDate 
+    ? new Date(selectedLoan.nextDueDate) 
+    : (selectedLoan ? addPeriods(selectedLoan.loanGivenDate, 1, selectedLoan.repaymentType) : new Date());
+  let projectedNextDueDate = new Date(currentDueDate);
 
   if (selectedLoan) {
     if (paymentType === 'Interest Only') {
-      calculatedInterest = numPaymentAmount;
+      const totalPool = numPaymentAmount + existingHold;
+      cyclesCovered = periodicInterest > 0 ? Math.floor(totalPool / periodicInterest) : 0;
+      newHoldAmount = periodicInterest > 0 ? (totalPool % periodicInterest) : totalPool;
+      calculatedInterest = cyclesCovered * periodicInterest;
       calculatedPrincipal = 0;
-      totalAmountReceived = numPaymentAmount;
+      if (cyclesCovered > 0) {
+        projectedNextDueDate = addPeriods(currentDueDate, cyclesCovered, selectedLoan.repaymentType);
+      }
     } else {
-      // Principal Only
+      // Principal Only: clears queue cycles in order exactly like regular installments
+      const totalPool = numPaymentAmount + existingHold;
+      cyclesCovered = installmentUnit > 0 ? Math.floor(totalPool / installmentUnit) : 0;
+      newHoldAmount = installmentUnit > 0 ? (totalPool % installmentUnit) : totalPool;
       calculatedInterest = 0;
       calculatedPrincipal = numPaymentAmount;
-      totalAmountReceived = numPaymentAmount;
+      newRemainingPrincipal = Math.max(0, selectedLoan.remainingPrincipal - calculatedPrincipal);
+      if (cyclesCovered > 0) {
+        projectedNextDueDate = addPeriods(currentDueDate, cyclesCovered, selectedLoan.repaymentType);
+      }
     }
-    
-    newRemainingPrincipal = selectedLoan.remainingPrincipal - calculatedPrincipal;
-    if (newRemainingPrincipal < 0) newRemainingPrincipal = 0;
   }
 
   // ── Submit Payment ───────────────────────────────────────────────────────────
@@ -229,6 +251,8 @@ export function Collections() {
         throw new Error(err.error || 'Payment failed');
       }
 
+      const result = await response.json();
+
       // Refresh all data from server
       await fetchAll();
       
@@ -238,9 +262,14 @@ export function Collections() {
         amount: totalAmountReceived,
         principalPaid: calculatedPrincipal,
         interestPaid: calculatedInterest,
-        remainingPrincipal: newRemainingPrincipal,
+        remainingPrincipal: result.updatedLoan?.remainingPrincipal ?? newRemainingPrincipal,
         date: paymentDate,
-        type: paymentType
+        type: paymentType,
+        cyclesCovered: result.cyclesCovered !== undefined ? result.cyclesCovered : cyclesCovered,
+        periodicInterest: result.installmentUnit || (paymentType === 'Principal Only' ? installmentUnit : periodicInterest),
+        repaymentType: selectedLoan.repaymentType,
+        newHoldAmount: result.holdAmount !== undefined ? result.holdAmount : newHoldAmount,
+        nextDueDate: result.nextDueDate || projectedNextDueDate
       });
       
       setPaymentAmount('');
@@ -270,33 +299,58 @@ export function Collections() {
   const sendWhatsApp = (receipt, language = 'en') => {
     let text = '';
     const dateStr = new Date(receipt.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
+    const nextDueStr = receipt.nextDueDate 
+      ? new Date(receipt.nextDueDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })
+      : 'N/A';
+    const periodLabel = receipt.repaymentType === 'Weekly' ? 'Week(s)' : receipt.repaymentType === '10 Days' ? 'Period(s)' : 'Month(s)';
     
     if (language === 'ta') {
       text = `*கட்டண ரசீது*\n\n`;
       text += `வணக்கம் ${receipt.customerName},\n`;
       text += `தாங்கள் ${dateStr} அன்று செலுத்திய *₹${receipt.amount.toLocaleString()}* தொகை கிடைக்கப்பெற்றது.\n\n`;
       text += `*கட்டண விவரம்:*\n`;
-      if (receipt.principalPaid > 0) text += `- அசல் வரவு: ₹${receipt.principalPaid.toLocaleString()}\n`;
-      if (receipt.interestPaid > 0) text += `- வட்டி வரவு: ₹${receipt.interestPaid.toLocaleString()}\n`;
-      text += `\n*மீதமுள்ள அசல்:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      if (receipt.cyclesCovered > 0) {
+        text += `- ${receipt.type === 'Principal Only' ? 'அசல் தவணை' : '10% வட்டி தவணை'}: ₹${receipt.periodicInterest.toLocaleString()} × ${receipt.cyclesCovered} = ₹${(receipt.periodicInterest * receipt.cyclesCovered).toLocaleString()} (${receipt.cyclesCovered} தவணை)\n`;
+      } else if (!receipt.principalPaid || receipt.principalPaid === 0) {
+        text += `- ஹோல்ட் இருப்பு வைப்பு: ₹${receipt.amount.toLocaleString()} (அடுத்த தவணைக்காக வைக்கப்பட்டுள்ளது)\n`;
+      }
+      if (receipt.principalPaid > 0 && receipt.type !== 'Principal Only') text += `- அசல் வரவு: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      else if (receipt.principalPaid > 0 && receipt.cyclesCovered === 0) text += `- அசல் வரவு: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.newHoldAmount > 0) text += `- ஹோல்ட் / நிலுவை இருப்பு: ₹${receipt.newHoldAmount.toLocaleString()}\n`;
+      text += `\n*மீதமுள்ள அசல்:* ₹${receipt.remainingPrincipal.toLocaleString()}\n`;
+      text += `*அடுத்த தவணை நாள் (Next Arrival):* ${nextDueStr}\n\n`;
       text += `நன்றி!`;
     } else if (language === 'tanglish') {
       text = `*Payment Receipt*\n\n`;
       text += `Vanakkam ${receipt.customerName},\n`;
       text += `Neenga ${dateStr} anaikku pay panna *₹${receipt.amount.toLocaleString()}* receive aaiduchu.\n\n`;
       text += `*Payment Breakdown:*\n`;
-      if (receipt.principalPaid > 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
-      if (receipt.interestPaid > 0) text += `- Interest: ₹${receipt.interestPaid.toLocaleString()}\n`;
-      text += `\n*Balance Principal:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      if (receipt.cyclesCovered > 0) {
+        text += `- ${receipt.type === 'Principal Only' ? 'Principal Installment' : '10% Interest Split'}: ₹${receipt.periodicInterest.toLocaleString()} × ${receipt.cyclesCovered} = ₹${(receipt.periodicInterest * receipt.cyclesCovered).toLocaleString()} (${receipt.cyclesCovered} ${periodLabel})\n`;
+      } else if (!receipt.principalPaid || receipt.principalPaid === 0) {
+        text += `- Hold Area Deposit: ₹${receipt.amount.toLocaleString()} (Saved toward upcoming cycle)\n`;
+      }
+      if (receipt.principalPaid > 0 && receipt.type !== 'Principal Only') text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      else if (receipt.principalPaid > 0 && receipt.cyclesCovered === 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.newHoldAmount > 0) text += `- Hold Area Balance: ₹${receipt.newHoldAmount.toLocaleString()}\n`;
+      text += `\n*Balance Principal:* ₹${receipt.remainingPrincipal.toLocaleString()}\n`;
+      text += `*Next Arrival Date:* ${nextDueStr}\n\n`;
       text += `Nandri!`;
     } else {
       text = `*Payment Receipt*\n\n`;
       text += `Hello ${receipt.customerName},\n`;
       text += `We have received your payment of *₹${receipt.amount.toLocaleString()}* on ${dateStr}.\n\n`;
       text += `*Payment Breakdown:*\n`;
-      if (receipt.principalPaid > 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
-      if (receipt.interestPaid > 0) text += `- Interest: ₹${receipt.interestPaid.toLocaleString()}\n`;
-      text += `\n*Remaining Balance:* ₹${receipt.remainingPrincipal.toLocaleString()}\n\n`;
+      if (receipt.cyclesCovered > 0) {
+        text += `- ${receipt.type === 'Principal Only' ? 'Principal Installment' : '10% Interest'}: ₹${receipt.periodicInterest.toLocaleString()} × ${receipt.cyclesCovered} = ₹${(receipt.periodicInterest * receipt.cyclesCovered).toLocaleString()} (${receipt.cyclesCovered} ${periodLabel})\n`;
+      } else if (!receipt.principalPaid || receipt.principalPaid === 0) {
+        text += `- Hold Area Deposit: ₹${receipt.amount.toLocaleString()} (Saved toward upcoming cycle)\n`;
+      }
+      if (receipt.principalPaid > 0 && receipt.type !== 'Principal Only') text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      else if (receipt.principalPaid > 0 && receipt.cyclesCovered === 0) text += `- Principal: ₹${receipt.principalPaid.toLocaleString()}\n`;
+      if (receipt.newHoldAmount > 0) text += `- Hold Area Balance: ₹${receipt.newHoldAmount.toLocaleString()}\n`;
+      text += `\n*Remaining Balance:* ₹${receipt.remainingPrincipal.toLocaleString()}\n`;
+      text += `*Next Arrival Date:* ${nextDueStr}\n\n`;
       text += `Thank you!`;
     }
 
@@ -518,17 +572,39 @@ export function Collections() {
                         {/* Quick-fill buttons */}
                         <div className="flex flex-col sm:flex-row gap-2 flex-wrap mt-2">
                           <span className="text-xs text-slate-400 self-center">Quick fill:</span>
-                          {selectedLoan.interestDue > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPaymentType('Interest Only');
-                                setPaymentAmount(String(selectedLoan.interestDue));
-                              }}
-                              className="text-xs px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-900/30 hover:bg-orange-100 transition-colors"
-                            >
-                              {t('interest_only')} ₹{selectedLoan.interestDue.toLocaleString()}
-                            </button>
+                          {periodicInterest > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentType('Interest Only');
+                                  setPaymentAmount(String(periodicInterest));
+                                }}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-900/30 hover:bg-blue-100 transition-colors"
+                              >
+                                1 Cycle (₹{periodicInterest.toLocaleString()})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentType('Interest Only');
+                                  setPaymentAmount(String(periodicInterest * 2));
+                                }}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-900/30 hover:bg-blue-100 transition-colors"
+                              >
+                                2 Cycles (₹{(periodicInterest * 2).toLocaleString()})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentType('Interest Only');
+                                  setPaymentAmount(String(periodicInterest * 3));
+                                }}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-900/30 hover:bg-blue-100 transition-colors"
+                              >
+                                3 Cycles (₹{(periodicInterest * 3).toLocaleString()})
+                              </button>
+                            </>
                           )}
                           {selectedLoan.remainingPrincipal > 0 && (
                             <button
@@ -645,8 +721,20 @@ export function Collections() {
                           <span className="font-semibold text-red-600 dark:text-red-400">₹{selectedLoan.remainingPrincipal.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
-                          <span className="text-sm text-slate-600 dark:text-slate-400">Interest Due</span>
-                          <span className="font-semibold text-orange-600 dark:text-orange-400">₹{selectedLoan.interestDue.toLocaleString()}</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-400">10% Cycle Interest</span>
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">₹{periodicInterest.toLocaleString()} / {selectedLoan.repaymentType}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
+                          <span className="text-sm text-purple-700 dark:text-purple-400 font-medium">Hold Area Balance</span>
+                          <span className="font-bold text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-md text-sm">
+                            ₹{existingHold.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">Next Arrival Date</span>
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Calendar size={13} /> {selectedLoan.nextDueDate ? new Date(selectedLoan.nextDueDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
                           <span className="text-sm text-slate-600 dark:text-slate-400">Interest Rate</span>
@@ -706,29 +794,82 @@ export function Collections() {
 
                       <div className="space-y-3 relative z-10">
                         <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                          <span className="text-sm text-slate-500">Total Received</span>
+                          <span className="text-sm text-slate-500">Total Received Today</span>
                           <span className="font-bold text-blue-600 dark:text-blue-400 text-lg">
                             {totalAmountReceived > 0 ? `₹${totalAmountReceived.toLocaleString()}` : '—'}
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-orange-50 dark:bg-orange-900/10 p-3 rounded-xl border border-orange-100 dark:border-orange-900/30">
-                            <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">→ Interest</p>
-                            <p className="font-bold text-orange-700 dark:text-orange-300">
-                              ₹{calculatedInterest.toLocaleString()}
-                            </p>
-                          </div>
-                          <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">→ Principal</p>
-                            <p className="font-bold text-emerald-700 dark:text-emerald-300">
-                              ₹{calculatedPrincipal.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
+                        {paymentType === 'Interest Only' ? (
+                          <>
+                            {existingHold > 0 && (
+                              <div className="bg-purple-50 dark:bg-purple-900/10 p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/30 text-xs text-purple-700 dark:text-purple-300 flex justify-between items-center">
+                                <span>+ Hold Area Applied:</span>
+                                <span className="font-bold">₹{existingHold.toLocaleString()}</span>
+                              </div>
+                            )}
+
+                            {cyclesCovered > 0 ? (
+                              <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 space-y-1.5">
+                                <div className="flex justify-between items-center text-xs text-blue-600 dark:text-blue-400">
+                                  <span>10% Interest Split:</span>
+                                  <span className="font-bold font-mono">
+                                    {Array(cyclesCovered).fill(`₹${periodicInterest}`).join(' + ')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm font-bold text-blue-800 dark:text-blue-200 pt-1 border-t border-blue-200/50">
+                                  <span>{cyclesCovered} {selectedLoan.repaymentType === 'Weekly' ? 'Week(s)' : selectedLoan.repaymentType === '10 Days' ? 'Period(s)' : 'Month(s)'} Covered:</span>
+                                  <span>₹{(cyclesCovered * periodicInterest).toLocaleString()}</span>
+                                </div>
+                              </div>
+                            ) : totalAmountReceived > 0 ? (
+                              <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded-xl border border-amber-200 dark:border-amber-900/30 text-xs text-amber-800 dark:text-amber-300">
+                                ⚠️ Paid amount (₹{totalAmountReceived}) is less than 1 full cycle (₹{periodicInterest}). It will be placed into the <strong>Hold Area</strong>.
+                              </div>
+                            ) : null}
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-purple-50 dark:bg-purple-900/10 p-3 rounded-xl border border-purple-100 dark:border-purple-900/30">
+                                <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">New Hold Area</p>
+                                <p className="font-bold text-purple-700 dark:text-purple-300">
+                                  ₹{newHoldAmount.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Next Arrival Date</p>
+                                <p className="font-bold text-emerald-700 dark:text-emerald-300 text-xs">
+                                  {projectedNextDueDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {cyclesCovered > 0 && (
+                              <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex justify-between items-center text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                                <span>{cyclesCovered} {selectedLoan.repaymentType === 'Weekly' ? 'Week(s)' : selectedLoan.repaymentType === '10 Days' ? 'Period(s)' : 'Month(s)'} Covered:</span>
+                                <span>₹{calculatedPrincipal.toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">→ Principal Paid</p>
+                                <p className="font-bold text-emerald-700 dark:text-emerald-300">
+                                  ₹{calculatedPrincipal.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Next Arrival Date</p>
+                                <p className="font-bold text-emerald-700 dark:text-emerald-300 text-xs">
+                                  {projectedNextDueDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                          </>
+                        )}
 
                         <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-700">
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">New Balance</span>
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Remaining Loan Balance</span>
                           <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                             ₹{newRemainingPrincipal.toLocaleString()}
                           </span>
@@ -819,9 +960,33 @@ export function Collections() {
                   <CheckCircle2 size={32} />
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Payment Confirmed!</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">
                   ₹{successReceipt.amount.toLocaleString()} received from {successReceipt.customerName}.
                 </p>
+
+                {/* Split & Next Arrival Summary Box */}
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 text-xs text-left mb-4 border border-slate-100 dark:border-slate-600 space-y-1.5">
+                  {successReceipt.cyclesCovered > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">10% Interest Split:</span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-300">
+                        ₹{successReceipt.periodicInterest?.toLocaleString()} × {successReceipt.cyclesCovered} ({successReceipt.cyclesCovered} {successReceipt.repaymentType === 'Weekly' ? 'Week(s)' : successReceipt.repaymentType === '10 Days' ? 'Period(s)' : 'Month(s)'})
+                      </span>
+                    </div>
+                  )}
+                  {successReceipt.newHoldAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Hold Area Balance:</span>
+                      <span className="font-bold text-purple-600 dark:text-purple-300">₹{successReceipt.newHoldAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-600">
+                    <span className="text-slate-500 dark:text-slate-400">Next Arrival Date:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {successReceipt.nextDueDate ? new Date(successReceipt.nextDueDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                    </span>
+                  </div>
+                </div>
                 
                 <div className="space-y-3">
                   <div className="flex gap-2">

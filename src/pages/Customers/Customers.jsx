@@ -19,7 +19,8 @@ import {
   CreditCard,
   X,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -278,58 +279,98 @@ export function Customers() {
     visible: { y: 0, opacity: 1 }
   };
 
-  const getDynamicStatus = (customer) => {
-    if (!customer.loanGivenDate) return customer.status;
-    if (customer.status === 'Completed' || customer.status === 'Closed') return customer.status;
-
-    const givenDate = new Date(customer.loanGivenDate);
-    const now = new Date();
-    
-    const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
-    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
-    const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-
-    let periodsElapsed = 0;
-    let periodLabel = '';
-    
-    if (customer.repaymentType === 'Daily') { periodsElapsed = diffDays; periodLabel = 'Day'; }
-    else if (customer.repaymentType === 'Weekly') { periodsElapsed = Math.floor(diffDays / 7); periodLabel = 'Week'; }
-    else if (customer.repaymentType === '10 Days') { periodsElapsed = Math.floor(diffDays / 10); periodLabel = '10-Day Period'; }
-    else if (customer.repaymentType === 'Monthly') { 
-        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
-        months -= givenDateMidnight.getMonth();
-        months += nowMidnight.getMonth();
-        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
-            months--;
-        }
-        periodsElapsed = Math.max(0, months);
-        periodLabel = 'Month'; 
-    } else {
-        return customer.status;
-    }
-
-    const actualPayments = customer.paymentsCount || 0;
-    const hasInitial = actualPayments > 0;
-    const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
-    const pendingCount = expectedPayments - actualPayments;
-    
-    if (pendingCount > 0) return `${pendingCount} ${periodLabel}${pendingCount > 1 ? 's' : ''} Pending`;
-    if (pendingCount < 0) return `${Math.abs(pendingCount)} ${periodLabel}${Math.abs(pendingCount) > 1 ? 's' : ''} Advance`;
-    return 'Active';
+  const addPeriods = (baseDate, count, repaymentType) => {
+    if (!baseDate) return new Date();
+    const d = new Date(baseDate);
+    const n = Number(count) || 0;
+    if (repaymentType === 'Weekly') d.setDate(d.getDate() + (n * 7));
+    else if (repaymentType === '10 Days') d.setDate(d.getDate() + (n * 10));
+    else if (repaymentType === 'Daily') d.setDate(d.getDate() + n);
+    else d.setMonth(d.getMonth() + n);
+    return d;
   };
 
-  const getStatusColor = (status) => {
-    const s = status.toLowerCase();
-    if (s.includes('pending')) {
-      return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800';
+  const getNextCycleInfo = (customer) => {
+    if (!customer.loanGivenDate || !customer.loanAmount) {
+      return {
+        hasLoan: false,
+        label: customer.status || 'Active',
+        badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+        dateStr: 'No Loan'
+      };
     }
-    if (s === 'active' || s.includes('advance')) {
-      return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800';
+
+    if (customer.status === 'Completed' || customer.status === 'Closed' || Number(customer.remainingBalance) <= 0) {
+      return {
+        hasLoan: true,
+        isCompleted: true,
+        label: 'Completed',
+        badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-700',
+        dateStr: 'Closed'
+      };
     }
-    if (s === 'closed') return 'bg-blue-100 text-blue-700 dark:bg-blue-600/30 dark:text-blue-400 border-blue-200 dark:border-blue-700';
-    if (s === 'overdue') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800';
-    return 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400';
+
+    let periodLabel = 'Week';
+    let periodDays = 7;
+    if (customer.repaymentType === 'Daily') { periodLabel = 'Day'; periodDays = 1; }
+    else if (customer.repaymentType === '10 Days') { periodLabel = '10-Day'; periodDays = 10; }
+    else if (customer.repaymentType === 'Monthly') { periodLabel = 'Month'; periodDays = 30; }
+
+    const dueDate = customer.nextDueDate
+      ? new Date(customer.nextDueDate)
+      : addPeriods(customer.loanGivenDate, 1, customer.repaymentType);
+
+    const now = new Date();
+    const dueDateMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffMs = nowMidnight.getTime() - dueDateMidnight.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    const dateStr = dueDate.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    if (diffDays > 0) {
+      // Overdue / Missed
+      const periods = Math.max(1, Math.floor(diffDays / periodDays));
+      return {
+        hasLoan: true,
+        isOverdue: true,
+        dateStr,
+        label: `${periods} ${periodLabel}${periods > 1 ? 's' : ''} Missed`,
+        badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
+        holdAmount: Number(customer.holdAmount) || 0
+      };
+    } else if (diffDays < 0) {
+      // Advance or On Track
+      const advanceDays = Math.abs(diffDays);
+      const periods = Math.floor(advanceDays / periodDays);
+      const isAdvance = periods >= 1;
+      return {
+        hasLoan: true,
+        isAdvance,
+        dateStr,
+        label: isAdvance ? `${periods} ${periodLabel}${periods > 1 ? 's' : ''} Advance` : 'On Track',
+        badgeColor: isAdvance
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+        holdAmount: Number(customer.holdAmount) || 0
+      };
+    } else {
+      // Due Today
+      return {
+        hasLoan: true,
+        isDueToday: true,
+        dateStr,
+        label: 'Due Today',
+        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+        holdAmount: Number(customer.holdAmount) || 0
+      };
+    }
   };
 
   const getLoanDateLabel = (customer) => (
@@ -397,7 +438,7 @@ export function Customers() {
                   <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('business_location')}</th>
                   <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('loan_amount')}</th>
                   <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('remaining_balance_col')}</th>
-                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('status')}</th>
+                  <th scope="col" className="px-6 py-4 font-medium whitespace-nowrap">{t('next_cycle_status') || 'Next Cycle / Status'}</th>
                   <th scope="col" className="px-6 py-4 font-medium text-right whitespace-nowrap">{t('actions')}</th>
                 </tr>
               </thead>
@@ -468,9 +509,38 @@ export function Customers() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap", getStatusColor(getDynamicStatus(customer)))}>
-                        {getDynamicStatus(customer)}
-                      </span>
+                      {customer.isNewlyAdded ? (
+                        <span className="text-xs text-slate-400 italic">-</span>
+                      ) : (() => {
+                        const cycle = getNextCycleInfo(customer);
+                        if (!cycle.hasLoan || cycle.isCompleted) {
+                          return (
+                            <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap", cycle.badgeColor)}>
+                              {cycle.label}
+                            </span>
+                          );
+                        }
+                        return (
+                          <div className="flex flex-col gap-1 items-start">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              <Calendar size={13} className={cycle.isOverdue ? "text-red-500" : cycle.isAdvance ? "text-emerald-500" : cycle.isDueToday ? "text-amber-500" : "text-blue-500"} />
+                              <span className={cycle.isOverdue ? "text-red-600 dark:text-red-400 font-bold" : cycle.isDueToday ? "text-amber-600 dark:text-amber-400 font-bold" : ""}>
+                                {cycle.dateStr}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap", cycle.badgeColor)}>
+                                {cycle.label}
+                              </span>
+                              {cycle.holdAmount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800" title="Held Advance Balance">
+                                  ₹{cycle.holdAmount} hold
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 transition-opacity">
@@ -533,9 +603,38 @@ export function Customers() {
                       <div className="text-xs text-slate-500">{customer.id}</div>
                     </div>
                   </div>
-                  <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap", getStatusColor(getDynamicStatus(customer)))}>
-                    {getDynamicStatus(customer)}
-                  </span>
+                  {customer.isNewlyAdded ? (
+                    <span className="text-xs text-slate-400 italic">-</span>
+                  ) : (() => {
+                    const cycle = getNextCycleInfo(customer);
+                    if (!cycle.hasLoan || cycle.isCompleted) {
+                      return (
+                        <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap", cycle.badgeColor)}>
+                          {cycle.label}
+                        </span>
+                      );
+                    }
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          <Calendar size={12} className={cycle.isOverdue ? "text-red-500" : cycle.isAdvance ? "text-emerald-500" : cycle.isDueToday ? "text-amber-500" : "text-blue-500"} />
+                          <span className={cycle.isOverdue ? "text-red-600 dark:text-red-400 font-bold" : cycle.isDueToday ? "text-amber-600 dark:text-amber-400 font-bold" : ""}>
+                            {cycle.dateStr}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap", cycle.badgeColor)}>
+                            {cycle.label}
+                          </span>
+                          {cycle.holdAmount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800" title="Held Advance Balance">
+                              ₹{cycle.holdAmount} hold
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {!customer.isNewlyAdded ? (

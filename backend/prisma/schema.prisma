@@ -35,6 +35,7 @@ model Loan {
   nextDueDate        DateTime?
   status             String    @default("Active") // 'Active', 'Closed', 'Overdue'
   interestDue        Float     @default(0)
+  holdAmount         Float     @default(0)
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

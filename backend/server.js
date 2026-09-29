@@ -77,6 +77,24 @@ function parseLoanOrPaymentDate(inputDate) {
   return new Date(inputDate);
 }
 
+// Helper function to add periods according to loan repayment schedule
+function addLoanPeriods(baseDate, count, repaymentType) {
+  if (!baseDate) return new Date();
+  const d = new Date(baseDate);
+  const n = Number(count) || 0;
+  if (repaymentType === 'Weekly') {
+    d.setDate(d.getDate() + (n * 7));
+  } else if (repaymentType === '10 Days') {
+    d.setDate(d.getDate() + (n * 10));
+  } else if (repaymentType === 'Daily') {
+    d.setDate(d.getDate() + n);
+  } else {
+    // Monthly (default)
+    d.setMonth(d.getMonth() + n);
+  }
+  return d;
+}
+
 // Basic health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is running' });
@@ -243,7 +261,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
       monthlyData.push({ name: monthName, income, expenses });
     }
 
-    // Calculate Overdue Loans dynamically
+    // Calculate Overdue Loans dynamically based on nextDueDate
     const nowMidnight = new Date(currentYear, currentMonth, now.getDate());
     const overdueLoansList = [];
 
@@ -251,46 +269,19 @@ app.get('/api/dashboard/summary', async (req, res) => {
       if (!l.loanGivenDate) continue;
       if (l.remainingPrincipal <= 0 || l.status === 'Completed' || l.status === 'Closed') continue;
 
-      const givenDate = new Date(l.loanGivenDate);
-      const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
-      const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
-      const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      let periodLabel = 'Month(s)';
+      let periodDays = 30;
+      if (l.repaymentType === 'Daily') { periodLabel = 'Day(s)'; periodDays = 1; }
+      else if (l.repaymentType === 'Weekly') { periodLabel = 'Week(s)'; periodDays = 7; }
+      else if (l.repaymentType === '10 Days') { periodLabel = 'Period(s)'; periodDays = 10; }
 
-      let periodsElapsed = 0;
-      let periodLabel = '';
-      let periodDays = 1;
+      const dueDate = l.nextDueDate ? new Date(l.nextDueDate) : addLoanPeriods(l.loanGivenDate, 1, l.repaymentType);
+      const dueDateMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
 
-      if (l.repaymentType === 'Daily') {
-        periodsElapsed = diffDays;
-        periodLabel = 'Day(s)';
-        periodDays = 1;
-      } else if (l.repaymentType === 'Weekly') {
-        periodsElapsed = Math.floor(diffDays / 7);
-        periodLabel = 'Week(s)';
-        periodDays = 7;
-      } else if (l.repaymentType === '10 Days') {
-        periodsElapsed = Math.floor(diffDays / 10);
-        periodLabel = 'Period(s)';
-        periodDays = 10;
-      } else if (l.repaymentType === 'Monthly') {
-        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
-        months -= givenDateMidnight.getMonth();
-        months += nowMidnight.getMonth();
-        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
-          months--;
-        }
-        periodsElapsed = Math.max(0, months);
-        periodLabel = 'Month(s)';
-        periodDays = 30;
-      }
-
-      const actualPayments = l.payments?.length || 0;
-      const hasInitial = actualPayments > 0;
-      const expectedPayments = (hasInitial ? 1 : 0) + periodsElapsed;
-      const pendingCount = expectedPayments - actualPayments;
-
-      if (pendingCount > 0) {
-        const daysOverdue = Math.max(1, pendingCount * periodDays);
+      if (nowMidnight.getTime() > dueDateMidnight.getTime()) {
+        const diffMs = nowMidnight.getTime() - dueDateMidnight.getTime();
+        const daysOverdue = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        const pendingCount = Math.max(1, Math.floor(daysOverdue / periodDays));
         overdueLoansList.push({
           id: l.id,
           customerId: l.customer?.id,
@@ -300,7 +291,8 @@ app.get('/api/dashboard/summary', async (req, res) => {
           pendingPeriods: pendingCount,
           periodLabel: `${pendingCount} ${periodLabel} Pending`,
           amount: l.remainingPrincipal,
-          repaymentType: l.repaymentType
+          repaymentType: l.repaymentType,
+          nextDueDate: l.nextDueDate
         });
       }
     }
@@ -353,7 +345,8 @@ app.get('/api/dashboard/summary', async (req, res) => {
       pendingPeriods: l.pendingPeriods,
       periodLabel: l.periodLabel,
       amount: l.amount,
-      repaymentType: l.repaymentType
+      repaymentType: l.repaymentType,
+      nextDueDate: l.nextDueDate
     }));
 
     res.json({
@@ -549,40 +542,21 @@ app.get('/api/notifications/pending', async (req, res) => {
 
     for (const loan of activeLoans) {
       if (!loan.loanGivenDate) continue;
-      const givenDate = new Date(loan.loanGivenDate);
-      const givenDateMidnight = new Date(givenDate.getFullYear(), givenDate.getMonth(), givenDate.getDate());
-      const diffTime = nowMidnight.getTime() - givenDateMidnight.getTime();
-      const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      
+      let periodLabel = 'Month(s)';
+      let periodDays = 30;
+      if (loan.repaymentType === 'Daily') { periodLabel = 'Day(s)'; periodDays = 1; }
+      else if (loan.repaymentType === 'Weekly') { periodLabel = 'Week(s)'; periodDays = 7; }
+      else if (loan.repaymentType === '10 Days') { periodLabel = 'Period(s)'; periodDays = 10; }
 
-      let periodsElapsed = 0;
-      let periodLabel = '';
+      const dueDate = loan.nextDueDate ? new Date(loan.nextDueDate) : addLoanPeriods(loan.loanGivenDate, 1, loan.repaymentType);
+      const dueDateMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
 
-      if (loan.repaymentType === 'Daily') {
-        periodsElapsed = diffDays;
-        periodLabel = 'Day(s)';
-      } else if (loan.repaymentType === 'Weekly') {
-        periodsElapsed = Math.floor(diffDays / 7);
-        periodLabel = 'Week(s)';
-      } else if (loan.repaymentType === '10 Days') {
-        periodsElapsed = Math.floor(diffDays / 10);
-        periodLabel = 'Period(s)';
-      } else if (loan.repaymentType === 'Monthly') {
-        let months = (nowMidnight.getFullYear() - givenDateMidnight.getFullYear()) * 12;
-        months -= givenDateMidnight.getMonth();
-        months += nowMidnight.getMonth();
-        if (nowMidnight.getDate() < givenDateMidnight.getDate()) {
-          months--;
-        }
-        periodsElapsed = Math.max(0, months);
-        periodLabel = 'Month(s)';
-      }
+      if (nowMidnight.getTime() > dueDateMidnight.getTime()) {
+        const diffMs = nowMidnight.getTime() - dueDateMidnight.getTime();
+        const diffDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        const pendingCount = Math.max(1, Math.floor(diffDays / periodDays));
 
-      const actualPayments = loan.payments?.length || 0;
-      const hasInitialPayment = actualPayments > 0;
-      const expectedPayments = (hasInitialPayment ? 1 : 0) + periodsElapsed;
-      const pendingCount = expectedPayments - actualPayments;
-
-      if (pendingCount > 0) {
         pendingNotifications.push({
           id: loan.customer.id,
           loanId: loan.id,
@@ -593,7 +567,8 @@ app.get('/api/notifications/pending', async (req, res) => {
           remainingBalance: loan.remainingPrincipal,
           loanAmount: loan.principalAmount,
           repaymentType: loan.repaymentType,
-          loanGivenDate: loan.loanGivenDate
+          loanGivenDate: loan.loanGivenDate,
+          nextDueDate: loan.nextDueDate
         });
       }
     }
@@ -637,6 +612,8 @@ app.get('/api/customers', async (req, res) => {
         interestRate: loan?.interestRate ?? 0,
         interestType: loan?.interestType ?? 'Monthly',
         loanGivenDate: loan?.loanGivenDate ?? null,
+        nextDueDate: loan?.nextDueDate ?? null,
+        holdAmount: Number(loan?.holdAmount) || 0,
         paymentsCount: loan?._count.payments ?? 0,
       };
     }));
@@ -686,6 +663,7 @@ app.post('/api/customers', async (req, res) => {
     if (parsedLoanAmount > 0) {
       const initialInterest = (parsedLoanAmount * parsedInterestRate) / 100;
       const loanDate = parseLoanOrPaymentDate(loanGivenDate);
+      const initialDue = addLoanPeriods(loanDate, 1, repaymentType || 'Monthly');
 
       const loan = await prisma.loan.create({
         data: {
@@ -696,6 +674,8 @@ app.post('/api/customers', async (req, res) => {
           interestType: interestType || 'Monthly',
           repaymentType: repaymentType || 'Monthly',
           loanGivenDate: loanDate,
+          nextDueDate: initialDue,
+          holdAmount: 0
         },
       });
 
@@ -735,6 +715,8 @@ app.post('/api/customers', async (req, res) => {
       interestRate: loan?.interestRate ?? 0,
       interestType: loan?.interestType ?? 'Monthly',
       loanGivenDate: loan?.loanGivenDate ?? null,
+      nextDueDate: loan?.nextDueDate ?? null,
+      holdAmount: Number(loan?.holdAmount) || 0,
       paymentsCount: loan?._count.payments ?? 0,
     });
   } catch (error) {
@@ -884,6 +866,8 @@ app.put('/api/customers/:id', async (req, res) => {
       interestRate: loan?.interestRate ?? 0,
       interestType: loan?.interestType ?? 'Monthly',
       loanGivenDate: loan?.loanGivenDate ?? null,
+      nextDueDate: loan?.nextDueDate ?? null,
+      holdAmount: Number(loan?.holdAmount) || 0,
       paymentsCount: loan?._count.payments ?? 0,
     });
   } catch (error) {
@@ -925,7 +909,11 @@ app.get('/api/customers/:id', async (req, res) => {
         interestType: loan.interestType,
         interestRate: loan.interestRate,
         remainingPrincipal: loan.remainingPrincipal,
+        repaymentType: loan.repaymentType,
         startDate: formatIndianDate(loan.loanGivenDate),
+        nextDueDate: loan.nextDueDate ? formatIndianDate(loan.nextDueDate) : 'N/A',
+        rawNextDueDate: loan.nextDueDate,
+        holdAmount: Number(loan.holdAmount) || 0,
         status: loan.status
       };
 
@@ -987,6 +975,7 @@ app.post('/api/loans', async (req, res) => {
       ? numInterestRate
       : 10;
     const loanDate = parseLoanOrPaymentDate(loanGivenDate);
+    const initialDue = addLoanPeriods(loanDate, 1, repaymentType || 'Monthly');
 
     const newLoan = await prisma.loan.create({
       data: {
@@ -996,7 +985,9 @@ app.post('/api/loans', async (req, res) => {
         interestRate: parsedRate,
         interestType: interestType || 'Monthly',
         repaymentType: repaymentType || 'Monthly',
-        loanGivenDate: loanDate
+        loanGivenDate: loanDate,
+        nextDueDate: initialDue,
+        holdAmount: 0
       }
     });
 
@@ -1030,7 +1021,7 @@ app.get('/api/payments', async (req, res) => {
       take: 50,
       include: {
         customer: { select: { name: true } },
-        loan: { select: { principalAmount: true, repaymentType: true } }
+        loan: { select: { principalAmount: true, remainingPrincipal: true, repaymentType: true, holdAmount: true, nextDueDate: true } }
       }
     });
     res.json(payments);
@@ -1045,68 +1036,138 @@ app.post('/api/payments', async (req, res) => {
     const { loanId, customerId, amount, principalPaid, interestPaid, paymentType, paymentDate } = req.body;
 
     const parsedAmount = Number(amount) || 0;
-    const parsedPrincipal = Number(principalPaid) || 0;
-    const parsedInterest = Number(interestPaid) || 0;
     const pDate = parseLoanOrPaymentDate(paymentDate);
 
-    // 1. Create payment record
-    const payment = await prisma.payment.create({
-      data: {
-        loanId,
-        customerId,
-        amount: parsedAmount,
-        principalPaid: parsedPrincipal,
-        interestPaid: parsedInterest,
-        paymentType: paymentType || 'Interest + Principal',
-        paymentDate: pDate
-      }
-    });
-
-    // 2. Fetch the current loan to compute new balances safely
+    // 1. Fetch current loan
     const loan = await prisma.loan.findUnique({ where: { id: loanId } });
     if (!loan) throw new Error('Loan not found');
 
-    const newPrincipal = Math.max(0, loan.remainingPrincipal - parsedPrincipal);
-    const newInterest = Math.max(0, loan.interestDue - parsedInterest);
-    const newStatus = newPrincipal === 0 ? 'Completed' : loan.status;
+    let createdPayments = [];
+    let updatedLoan;
 
-    // 3. Update loan remaining balance and status
-    const updatedLoan = await prisma.loan.update({
-      where: { id: loanId },
-      data: {
-        remainingPrincipal: newPrincipal,
-        interestDue: newInterest,
-        status: newStatus
+    // Cycle installment size (10% standard rule)
+    const installmentUnit = (Number(loan.principalAmount) * (Number(loan.interestRate) || 10)) / 100 || 500;
+    const periodicInterest = (Number(loan.remainingPrincipal) * (Number(loan.interestRate) || 10)) / 100;
+    const currentHold = Number(loan.holdAmount) || 0;
+
+    let cyclesCount = 0;
+
+    if (paymentType === 'Principal Only') {
+      const parsedPrincipal = Number(principalPaid || parsedAmount) || 0;
+      const totalAvailable = parsedPrincipal + currentHold;
+      cyclesCount = installmentUnit > 0 ? Math.floor(totalAvailable / installmentUnit) : 0;
+
+      const payment = await prisma.payment.create({
+        data: {
+          loanId,
+          customerId,
+          amount: parsedPrincipal,
+          principalPaid: parsedPrincipal,
+          interestPaid: 0,
+          paymentType: 'Principal Only',
+          paymentDate: pDate,
+          status: 'Completed'
+        }
+      });
+      createdPayments.push(payment);
+    } else {
+      // 10% Interest Rule with Hold Area & Split Engine (Option A)
+      const totalAvailable = parsedAmount + currentHold;
+      const cycleUnit = periodicInterest > 0 ? periodicInterest : 500;
+      cyclesCount = Math.floor(totalAvailable / cycleUnit);
+
+      if (cyclesCount > 0) {
+        // Option A: Split into separate payment records for each cycle covered
+        for (let i = 1; i <= cyclesCount; i++) {
+          const p = await prisma.payment.create({
+            data: {
+              loanId,
+              customerId,
+              amount: cycleUnit,
+              principalPaid: 0,
+              interestPaid: cycleUnit,
+              paymentType: cyclesCount > 1 ? `Interest (${i}/${cyclesCount})` : 'Interest Only',
+              paymentDate: pDate,
+              status: 'Completed'
+            }
+          });
+          createdPayments.push(p);
+        }
+      } else {
+        // Cash paid is less than 1 full cycle; total amount goes to Hold Area
+        const p = await prisma.payment.create({
+          data: {
+            loanId,
+            customerId,
+            amount: parsedAmount,
+            principalPaid: 0,
+            interestPaid: 0,
+            paymentType: 'Hold Balance Deposit',
+            paymentDate: pDate,
+            status: 'Completed'
+          }
+        });
+        createdPayments.push(p);
       }
-    });
+    }
 
-    res.status(201).json({ payment, updatedLoan });
+    // Single source of truth: recalculate loan schedule and queue status from database
+    updatedLoan = await recalculateLoanSchedule(loanId);
+
+    res.status(201).json({
+      payment: createdPayments[0],
+      payments: createdPayments,
+      updatedLoan,
+      cyclesCovered: cyclesCount,
+      installmentUnit: paymentType === 'Principal Only' ? installmentUnit : periodicInterest,
+      holdAmount: updatedLoan.holdAmount,
+      nextDueDate: updatedLoan.nextDueDate
+    });
   } catch (error) {
     console.error('Failed to process payment:', error);
     res.status(500).json({ error: 'Failed to process payment' });
   }
 });
 
-// Helper function to recalculate loan remaining balance and status from all its payments
-async function recalculateLoanBalance(loanId) {
+// Helper function to recalculate loan schedule, remaining balance, status, hold amount, and queue-based nextDueDate
+async function recalculateLoanSchedule(loanId) {
   const loan = await prisma.loan.findUnique({
     where: { id: loanId },
-    include: { payments: true }
+    include: { payments: { orderBy: { paymentDate: 'asc' } } }
   });
   if (!loan) return null;
 
+  // 1. Calculate remaining principal and status
   const totalPrincipalPaid = loan.payments.reduce((sum, p) => sum + (Number(p.principalPaid) || 0), 0);
   const newRemainingPrincipal = Math.max(0, loan.principalAmount - totalPrincipalPaid);
   const newStatus = newRemainingPrincipal === 0 ? 'Completed' : (loan.status === 'Completed' ? 'Active' : loan.status);
+
+  // 2. Calculate cycle installment size (10% standard rule)
+  const installmentUnit = (Number(loan.principalAmount) * (Number(loan.interestRate) || 10)) / 100 || 500;
+
+  // 3. Regular payments that count toward cycles (excluding upfront loan disbursement fee First Auto Interest)
+  const regularPayments = loan.payments.filter(p => p.paymentType !== 'First Auto Interest');
+  const totalPaidTowardsCycles = regularPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  const cyclesCovered = Math.floor(totalPaidTowardsCycles / installmentUnit);
+  const newHoldAmount = totalPaidTowardsCycles % installmentUnit;
+
+  // 4. Queue advancement from the very first scheduled due date
+  const initialDueDate = addLoanPeriods(loan.loanGivenDate, 1, loan.repaymentType);
+  const newNextDueDate = addLoanPeriods(initialDueDate, cyclesCovered, loan.repaymentType);
 
   return await prisma.loan.update({
     where: { id: loanId },
     data: {
       remainingPrincipal: newRemainingPrincipal,
-      status: newStatus
+      status: newStatus,
+      holdAmount: newHoldAmount,
+      nextDueDate: newNextDueDate
     }
   });
 }
+
+const recalculateLoanBalance = recalculateLoanSchedule;
 
 app.put('/api/payments/:id', async (req, res) => {
   try {
@@ -1134,7 +1195,7 @@ app.put('/api/payments/:id', async (req, res) => {
       }
     });
 
-    const updatedLoan = await recalculateLoanBalance(existingPayment.loanId);
+    const updatedLoan = await recalculateLoanSchedule(existingPayment.loanId);
 
     res.json({
       message: 'Payment updated successfully',
@@ -1155,7 +1216,7 @@ app.delete('/api/payments/:id', async (req, res) => {
     }
 
     await prisma.payment.delete({ where: { id: req.params.id } });
-    const updatedLoan = await recalculateLoanBalance(payment.loanId);
+    const updatedLoan = await recalculateLoanSchedule(payment.loanId);
 
     res.json({
       message: 'Payment deleted successfully',
